@@ -7,13 +7,13 @@
   <title>My Groups</title>
   <style>
     :root {
-      --bg: #0b1220;
-      --card: #131b2e;
-      --muted: #8ea0bc;
-      --text: #e8eefc;
-      --accent: #5dd4a2;
-      --border: #22304c;
-      --danger: #ff6b6b;
+      --bg: #f5f7fb;
+      --card: #ffffff;
+      --muted: #5b6b86;
+      --text: #0f172a;
+      --accent: #2563eb;
+      --border: #e2e8f0;
+      --danger: #ef4444;
     }
 
     * { box-sizing: border-box; }
@@ -21,7 +21,7 @@
     body {
       margin: 0;
       font-family: ui-sans-serif, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
-      background: radial-gradient(1200px 800px at 20% 0%, #101a30 0%, var(--bg) 60%);
+      background: radial-gradient(1200px 800px at 20% 0%, #ffffff 0%, var(--bg) 60%);
       color: var(--text);
       min-height: 100vh;
       display: flex;
@@ -41,10 +41,15 @@
 
     nav a { color: #8fb8ff; text-decoration: none; margin-right: 12px; }
     nav a:hover { text-decoration: underline; }
+    /* Consistent header across pages */
+    .header-bar { background: linear-gradient(180deg, rgba(37,99,235,0.95), rgba(37,99,235,0.85)); color: #ffffff; border-bottom: 1px solid #1e40af; }
+    .header-bar a { color: #eaf2ff; }
+    .header-bar a:hover { text-decoration: underline; }
+    .header-bar .sub { color: #eaf2ff; }
 
     main { width: 100%; max-width: 680px; margin: 12px auto 40px; padding: 0 16px; flex: 1; }
 
-    .card { background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.00)); border: 1px solid var(--border); border-radius: 14px; padding: 14px; }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 14px; }
     .list { display: grid; gap: 10px; margin-top: 12px; }
     .item { display: grid; grid-template-columns: 1fr; align-items: center; gap: 10px; border: 1px solid var(--border); padding: 10px 12px; border-radius: 10px; }
     .item .name { font-weight: 600; }
@@ -63,7 +68,7 @@
   </style>
 </head>
 <body>
-  <header>
+  <header class="header-bar">
     <h1>My Groups</h1>
     <div class="sub">Create and manage your groups</div>
     <nav style="margin-left:auto">

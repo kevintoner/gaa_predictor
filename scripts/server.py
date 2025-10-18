@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import sqlite3
 from pathlib import Path
-from flask import Flask, jsonify, request, make_response
+from flask import Flask, jsonify, request, make_response, send_from_directory
 from flask_cors import CORS
 from datetime import datetime, timedelta, timezone
 
 
-DB_PATH = Path(__file__).resolve().parents[1] / "db" / "local.db"
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+DB_PATH = PROJECT_ROOT / "db" / "local.db"
 
 
 def get_conn() -> sqlite3.Connection:
@@ -20,8 +21,44 @@ app = Flask(__name__)
 # Allow cookie credentials for common local dev origins
 CORS(app, supports_credentials=True, resources={r"/api/*": {"origins": [
     "http://127.0.0.1:8000", "http://localhost:8000",
-    "http://127.0.0.1:5500", "http://localhost:5500"
+    "http://127.0.0.1:5001", "http://localhost:5001"
 ]}})
+
+@app.get("/")
+def root_index():
+    return send_from_directory(PROJECT_ROOT, "index.html")
+
+@app.get("/index.html")
+def serve_index():
+    return send_from_directory(PROJECT_ROOT, "index.html")
+
+@app.get("/groups.html")
+def serve_groups():
+    return send_from_directory(PROJECT_ROOT, "groups.html")
+
+@app.get("/group.html")
+def serve_group():
+    return send_from_directory(PROJECT_ROOT, "group.html")
+
+@app.get("/login.html")
+def serve_login():
+    return send_from_directory(PROJECT_ROOT, "login.html")
+
+@app.get("/create-group.html")
+def serve_create_group():
+    return send_from_directory(PROJECT_ROOT, "create-group.html")
+
+@app.get("/create-match.html")
+def serve_create_match():
+    return send_from_directory(PROJECT_ROOT, "create-match.html")
+
+@app.get("/pricing.html")
+def serve_pricing():
+    return send_from_directory(PROJECT_ROOT, "pricing.html")
+
+@app.get("/matrix.html")
+def serve_matrix():
+    return send_from_directory(PROJECT_ROOT, "matrix.html")
 
 
 def _result_letter_sql_expr(prefix: str = "m") -> str:
@@ -278,14 +315,13 @@ def api_matches_set_score():
             "UPDATE matches SET home_score=?, away_score=?, match_over=? WHERE id=?",
             (sA, sB, res_letter, mid),
         )
-        # Recalculate scores for the group this match belongs to
+        # Recalculate scores for ALL groups that have picks for this match
         cur.execute(
-            "SELECT g.id FROM groups g JOIN picks p ON p.group_id=g.id WHERE p.match_id=? LIMIT 1",
+            "SELECT DISTINCT p.group_id FROM picks p WHERE p.match_id=?",
             (mid,),
         )
-        gid_row = cur.fetchone()
-        if gid_row:
-            _recalc_member_scores_for_group(cur, gid_row[0])
+        for row in cur.fetchall():
+            _recalc_member_scores_for_group(cur, row[0])
         conn.commit()
     return jsonify({"id": mid, "home_score": sA, "away_score": sB, "match_over": res_letter})
 
@@ -463,6 +499,70 @@ def api_picks_stats():
 
     return jsonify({"stats": stats_rows, "mine": mine})
 
+@app.get("/api/picks/matrix")
+def api_picks_matrix():
+    """Return pick matrix for a group.
+
+    Query: ?group=Group%201
+    Response:
+      {
+        "members": ["Alice", "Bob"],
+        "matches": [
+          {"home": "Lavey", "away": "Bellaghy", "kickoff": "...", "result": "A|B|D"}
+        ],
+        "picks": { "Alice|home|away|kickoff": "A" }
+      }
+    """
+    group_name = request.args.get("group")
+    if not group_name:
+        return jsonify({"members": [], "matches": [], "picks": {}})
+    with get_conn() as conn:
+        cur = conn.cursor()
+        # Group id
+        cur.execute("SELECT id FROM groups WHERE name=?", (group_name,))
+        g = cur.fetchone()
+        if not g:
+            return jsonify({"members": [], "matches": [], "picks": {}})
+        gid = g[0]
+        # Members
+        cur.execute("SELECT id, name FROM members WHERE group_id=? ORDER BY name COLLATE NOCASE", (gid,))
+        members_rows = cur.fetchall()
+        member_id_to_name = {row[0]: row[1] for row in members_rows}
+        members = [row[1] for row in members_rows]
+
+        # Matches for which group has any picks (order by kickoff)
+        cur.execute(
+            """
+            SELECT DISTINCT m.id, m.home_team, m.away_team, m.kickoff_at,
+                   m.home_score, m.away_score, m.match_over AS result
+            FROM picks p JOIN matches m ON m.id = p.match_id
+            WHERE p.group_id = ?
+              AND (m.match_over IS NOT NULL AND m.match_over <> '0')
+            ORDER BY datetime(m.kickoff_at) ASC
+            """,
+            (gid,)
+        )
+        matches_rows = cur.fetchall()
+        matches = []
+        match_id_to_key = {}
+        for r in matches_rows:
+            mid, home, away, kickoff, home_score, away_score, result = r
+            key = f"{home}|{away}|{kickoff}"
+            match_id_to_key[mid] = key
+            matches.append({"home": home, "away": away, "kickoff": kickoff, "home_score": home_score, "away_score": away_score, "result": result})
+
+        # Picks
+        cur.execute(
+            "SELECT member_id, match_id, pick FROM picks WHERE group_id=?",
+            (gid,)
+        )
+        picks = {}
+        for r in cur.fetchall():
+            mid = r[1]
+            key = f"{member_id_to_name.get(r[0])}|{match_id_to_key.get(mid)}"
+            picks[key] = r[2]
+    return jsonify({"members": members, "matches": matches, "picks": picks})
+
 @app.post("/api/picks")
 def api_picks_upsert():
     """Create or update a user's pick for a match.
@@ -524,16 +624,18 @@ def api_picks_upsert():
         match_id = mm[0]
         print(f"[picks_upsert] resolved match_id={match_id}")
 
-        # Upsert pick with compatibility for older SQLite: try insert, then update if exists
+        # Enforce single submission: if a pick already exists for this member+match in this group, forbid changes
         cur.execute(
-            "INSERT OR IGNORE INTO picks(group_id, member_id, match_id, pick) VALUES(?,?,?,?)",
+            "SELECT 1 FROM picks WHERE group_id=? AND member_id=? AND match_id=? LIMIT 1",
+            (group_id, member_id, match_id),
+        )
+        exists = cur.fetchone() is not None
+        if exists:
+            return jsonify({"error": "already submitted"}), 409
+        cur.execute(
+            "INSERT INTO picks(group_id, member_id, match_id, pick) VALUES(?,?,?,?)",
             (group_id, member_id, match_id, pick),
         )
-        if cur.rowcount == 0:
-            cur.execute(
-                "UPDATE picks SET pick=? WHERE member_id=? AND match_id=?",
-                (pick, member_id, match_id),
-            )
         conn.commit()
         print(f"[picks_upsert] upserted pick group_id={group_id} member_id={member_id} match_id={match_id} pick={pick}")
         return jsonify({

@@ -5,31 +5,35 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Pricing</title>
   <style>
-    :root { --bg:#0b1220; --card:#131b2e; --muted:#8ea0bc; --text:#e8eefc; --border:#22304c; --accent:#5dd4a2; }
+    :root { --bg:#f5f7fb; --card:#ffffff; --muted:#5b6b86; --text:#0f172a; --border:#e2e8f0; --accent:#2563eb; }
     * { box-sizing: border-box; }
-    body { margin:0; font-family: ui-sans-serif,-apple-system,Segoe UI,Roboto,Helvetica,Arial; background: radial-gradient(1200px 800px at 20% 0%, #101a30 0%, var(--bg) 60%); color: var(--text); min-height:100vh; display:flex; flex-direction:column; }
+    body { margin:0; font-family: ui-sans-serif,-apple-system,Segoe UI,Roboto,Helvetica,Arial; background: radial-gradient(1200px 800px at 20% 0%, #ffffff 0%, var(--bg) 60%); color: var(--text); min-height:100vh; display:flex; flex-direction:column; }
     header { padding:24px 20px 8px; display:flex; gap:12px 18px; align-items:baseline; flex-wrap:wrap; }
     h1 { margin:0; font-size:22px; letter-spacing:0.2px; }
     nav { margin-left:auto; }
     nav a { color:#8fb8ff; text-decoration:none; margin-right:12px; }
     nav a:hover { text-decoration:underline; }
+    .header-bar { background: linear-gradient(180deg, rgba(37,99,235,0.95), rgba(37,99,235,0.85)); color: #ffffff; border-bottom: 1px solid #1e40af; }
+    .header-bar a { color: #eaf2ff; }
+    .header-bar a:hover { text-decoration: underline; }
+    .header-bar .sub { color: #eaf2ff; }
     main { width:100%; max-width:980px; margin:12px auto 40px; padding:0 16px; flex:1; }
     .grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
-    .card { background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.00)); border:1px solid var(--border); border-radius:14px; padding:16px; }
+    .card { background: var(--card); border:1px solid var(--border); border-radius:14px; padding:16px; }
     .plan-title { font-size:18px; font-weight:700; margin-bottom:6px; }
     .price { font-size:28px; font-weight:800; margin:6px 0 6px; }
     .muted { color: var(--muted); font-size: 13px; }
     .subprice { color: var(--muted); font-size: 13px; margin-bottom: 10px; }
-    .save { display:inline-block; margin-left:8px; color:#9ae6b4; background: rgba(93,212,162,0.12); border: 1px solid #2a5247; padding:2px 6px; border-radius: 999px; font-size: 12px; }
+    .save { display:inline-block; margin-left:8px; color:#166534; background: rgba(22,101,52,0.08); border: 1px solid #166534; padding:2px 6px; border-radius: 999px; font-size: 12px; }
     ul { margin: 0; padding-left: 18px; }
     li { margin: 6px 0; }
     .cta { margin-top: 12px; display:inline-block; border:1px solid var(--border); padding:8px 12px; border-radius:10px; text-decoration:none; color: var(--text); }
     .cta:hover { border-color:#34507c; }
-    .highlight { border-color: #2a5247; box-shadow: 0 0 0 1px rgba(93,212,162,0.15) inset; }
+    .highlight { border-color: #2a5247; box-shadow: 0 0 0 1px rgba(37,99,235,0.15) inset; }
   </style>
 </head>
 <body>
-  <header>
+  <header class="header-bar">
     <h1>Pricing</h1>
     <nav>
       <a href="/index.html">Home</a>

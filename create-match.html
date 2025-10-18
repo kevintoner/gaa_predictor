@@ -9,6 +9,11 @@
     * { box-sizing: border-box; }
     body { margin:0; font-family: ui-sans-serif,-apple-system,Segoe UI,Roboto,Helvetica,Arial; background: radial-gradient(1200px 800px at 20% 0%, #ffffff 0%, var(--bg) 60%); color: var(--text); min-height:100vh; }
     header { padding:24px 20px 8px; display:flex; gap:12px; align-items:baseline; }
+    .header-bar { background: linear-gradient(180deg, rgba(37,99,235,0.95), rgba(37,99,235,0.85)); color: #ffffff; border-bottom: 1px solid #1e40af; }
+    .header-bar a { color: #eaf2ff; }
+    .header-bar a:hover { text-decoration: underline; }
+    .btn-head { display:inline-block; border:1px solid #bfdbfe; padding:6px 10px; border-radius:8px; text-decoration:none; color:#eaf2ff; }
+    .btn-head:hover { background: rgba(255,255,255,0.08); }
     h1 { margin:0; font-size:22px; }
     main { width:100%; max-width:720px; margin:12px auto 40px; padding:0 16px; }
     .card { background: var(--card); border:1px solid var(--border); border-radius:14px; padding:16px; }
@@ -22,10 +27,12 @@
   </style>
 </head>
 <body>
-  <header>
+  <header class="header-bar">
     <h1>Create a Match</h1>
-    <nav style="margin-left:auto">
-      <a href="/groups.html">Groups</a>
+    <nav style="margin-left:auto; display:flex; gap:8px; align-items:center;">
+      <a class="btn-head" href="/index.html">Home</a>
+      <a class="btn-head" href="#" onclick="history.back(); return false;">Back</a>
+      <a href="/groups.html" style="margin-left:8px;">Groups</a>
     </nav>
   </header>
   <main>

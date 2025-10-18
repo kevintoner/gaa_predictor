@@ -297,6 +297,18 @@
       document.title = group.name + ' — Scoreboard';
       document.getElementById('groupHeader').textContent = group.name;
       document.getElementById('meta').textContent = `…`;
+    // Add toolbar actions: Refresh + View Matrix
+    try {
+      const ta = document.getElementById('toolbarActions');
+      if (ta) {
+        ta.innerHTML = `
+          <a href="#" id="refreshScoresBtn" style="text-decoration:none; border:1px solid var(--border); padding:6px 10px; border-radius:8px;">Refresh</a>
+          <a href="/matrix.html?group=${encodeURIComponent(group.name)}" style="text-decoration:none; border:1px solid var(--border); padding:6px 10px; border-radius:8px;">View Matrix</a>
+        `;
+        const rbtn = document.getElementById('refreshScoresBtn');
+        if (rbtn) rbtn.addEventListener('click', (e) => { e.preventDefault(); render(); });
+      }
+    } catch {}
 
       // removed auto-recalc dev helper
 
@@ -363,6 +375,7 @@
         card.className = 'match-card';
         const id = matchId(m);
         const currentPick = (picksStats.mine && picksStats.mine[id]) || picks[id] || null; // 'A' | 'D' | 'B'
+        const alreadyPicked = !!currentPick;
         card.innerHTML = `
           <div class="match-row">
             <div>
@@ -417,7 +430,7 @@
         const submitRow = card.querySelector('.submit-row');
 
         // If already submitted, lock UI and show message
-        const wasSubmitted = !!submissions[id];
+        const wasSubmitted = alreadyPicked || !!submissions[id];
         if (wasSubmitted) {
           card.classList.add('submitted');
           const choicesEl = card.querySelector('.choices');
@@ -459,6 +472,7 @@
         btns.forEach(b => {
           b.addEventListener('click', (e) => {
             e.stopPropagation();
+            if (alreadyPicked || wasSubmitted) return;
             const target = e.currentTarget;
             const choice = target && target.getAttribute ? target.getAttribute('data-choice') : null;
             if (!choice) return;
@@ -476,7 +490,7 @@
               inlineMsg.style.display = 'block';
             }
               // Reveal submit controls only if expanded and not submitted
-              if (!wasSubmitted && card.classList.contains('expanded')) {
+              if (!wasSubmitted && !alreadyPicked && card.classList.contains('expanded')) {
                 submitRow.style.display = 'block';
               }
           });
@@ -486,12 +500,13 @@
         const submitBtn = card.querySelector('.btn-submit');
         submitBtn.addEventListener('click', async (e) => {
           e.stopPropagation();
+          if (alreadyPicked || wasSubmitted) return;
           const selected = card.querySelector('.btn-choice.selected');
           const choice = selected ? selected.getAttribute('data-choice') : null;
           if (!choice) return;
           // Persist to DB
           try {
-            await fetch(PICKS_URL, {
+            const r = await fetch(PICKS_URL, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -501,6 +516,23 @@
                 pick: choice
               })
             });
+            if (!r.ok) {
+              if (r.status === 409) {
+                const latestSubs = loadSubmissions(group.name);
+                latestSubs[id] = true;
+                saveSubmissions(group.name, latestSubs);
+                card.classList.add('submitted');
+                const choicesEl = card.querySelector('.choices');
+                if (choicesEl) choicesEl.style.display = 'none';
+                submitBtn.style.display = 'none';
+                const msgEl = card.querySelector('.prediction-message');
+                const label = (currentPick === 'A') ? `${m.home} Win` : (currentPick === 'B') ? `${m.away} Win` : 'Draw';
+                msgEl.textContent = `Prediction: ${label}`;
+                msgEl.style.display = 'block';
+                return;
+              }
+              throw new Error('Failed');
+            }
           } catch (err) { console.error(err); }
           const latestSubs = loadSubmissions(group.name);
           latestSubs[id] = true;
@@ -588,8 +620,10 @@
         const predictionText = userPick ? `${userPick} (${predictionHuman})` : 'No prediction';
         const card = document.createElement('div');
         card.className = 'past-card ' + (isCorrect ? 'correct' : 'incorrect');
-        const homeHtml = result === 'A' ? `<span class="winner">${m.home} ${m.scoreA}</span>` : `${m.home} ${m.scoreA}`;
-        const awayHtml = result === 'B' ? `<span class="winner">${m.away} ${m.scoreB}</span>` : `${m.away} ${m.scoreB}`;
+        const homeScoreDisp = `${m.scoreA} (${totalA})`;
+        const awayScoreDisp = `${m.scoreB} (${totalB})`;
+        const homeHtml = result === 'A' ? `<span class="winner">${m.home} ${homeScoreDisp}</span>` : `${m.home} ${homeScoreDisp}`;
+        const awayHtml = result === 'B' ? `<span class="winner">${m.away} ${awayScoreDisp}</span>` : `${m.away} ${awayScoreDisp}`;
         card.innerHTML = `
           <div class="past-row">
             <div>

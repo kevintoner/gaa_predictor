@@ -6,13 +6,13 @@
   <title>Gaelic Football (GAA) - Today's Results</title>
   <style>
     :root {
-      --bg: #0b1220;
-      --card: #131b2e;
-      --muted: #8ea0bc;
-      --text: #e8eefc;
-      --accent: #5dd4a2;
-      --live: #ff5d5d;
-      --border: #22304c;
+      --bg: #f5f7fb;
+      --card: #ffffff;
+      --muted: #5b6b86;
+      --text: #0f172a;
+      --accent: #2563eb;
+      --live: #ef4444;
+      --border: #e2e8f0;
     }
 
     * { box-sizing: border-box; }
@@ -20,7 +20,7 @@
     body {
       margin: 0;
       font-family: ui-sans-serif, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
-      background: radial-gradient(1200px 800px at 20% 0%, #101a30 0%, var(--bg) 60%);
+      background: radial-gradient(1200px 800px at 20% 0%, #ffffff 0%, var(--bg) 60%);
       color: var(--text);
       min-height: 100vh;
       display: flex;
@@ -79,7 +79,7 @@
     }
 
     .card {
-      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.00));
+      background: var(--card);
       border: 1px solid var(--border);
       border-radius: 14px;
       padding: 12px;
@@ -100,6 +100,11 @@
     footer { text-align: center; color: var(--muted); font-size: 12px; padding: 18px; }
     a { color: #8fb8ff; text-decoration: none; }
     a:hover { text-decoration: underline; }
+    /* Consistent header across pages */
+    .header-bar { background: linear-gradient(180deg, rgba(37,99,235,0.95), rgba(37,99,235,0.85)); color: #ffffff; border-bottom: 1px solid #1e40af; }
+    .header-bar a { color: #eaf2ff; }
+    .header-bar a:hover { text-decoration: underline; }
+    .header-bar .sub { color: #eaf2ff; }
   </style>
   <link rel="icon" href="data:," />
   <meta name="color-scheme" content="dark light" />
@@ -112,7 +117,7 @@
   <!-- If you see CORS issues, serve this file via a local web server (see README below). -->
 </head>
 <body>
-  <header>
+  <header class="header-bar">
     <h1>Gaelic Football — Today's Results</h1>
     <div class="sub" id="dateText"></div>
     <div class="controls">

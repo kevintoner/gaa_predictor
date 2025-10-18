@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Group Pick Matrix</title>
+  <style>
+    :root { --bg:#f5f7fb; --card:#ffffff; --muted:#5b6b86; --text:#0f172a; --border:#e2e8f0; --accent:#2563eb; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family: ui-sans-serif,-apple-system,Segoe UI,Roboto,Helvetica,Arial; background: radial-gradient(1200px 800px at 20% 0%, #ffffff 0%, var(--bg) 60%); color: var(--text); min-height:100vh; display:flex; flex-direction:column; }
+    header { padding:24px 20px 8px; display:flex; gap:12px 18px; align-items:baseline; flex-wrap:wrap; }
+    h1 { margin:0; font-size:22px; letter-spacing:0.2px; }
+    nav { margin-left:auto; }
+    nav a { color:#8fb8ff; text-decoration:none; margin-right:12px; }
+    nav a:hover { text-decoration:underline; }
+    .header-bar { background: linear-gradient(180deg, rgba(37,99,235,0.95), rgba(37,99,235,0.85)); color: #ffffff; border-bottom: 1px solid #1e40af; }
+    .header-bar a { color: #eaf2ff; }
+    .header-bar a:hover { text-decoration: underline; }
+    .header-bar .sub { color: #eaf2ff; }
+    .btn-head { display:inline-block; border:1px solid #bfdbfe; padding:6px 10px; border-radius:8px; text-decoration:none; color:#eaf2ff; }
+    .btn-head:hover { background: rgba(255,255,255,0.08); }
+    main { width:100%; max-width:100%; margin:12px auto 40px; padding:0 16px; flex:1; }
+    .card { background: var(--card); border:1px solid var(--border); border-radius:14px; padding:14px; overflow:auto; }
+    table { border-collapse: separate; border-spacing: 0; width: max-content; min-width:100%; }
+    th, td { border-bottom:1px solid var(--border); border-right:1px solid var(--border); padding:8px 10px; text-align:center; }
+    th:first-child, td:first-child { position: sticky; left: 0; background: var(--card); z-index: 2; text-align:left; }
+    thead th { position: sticky; top: 0; background: var(--card); z-index: 3; }
+    thead th:first-child { z-index: 4; }
+    th { color: var(--muted); font-weight:600; }
+    .result { font-weight:700; }
+    .win { color:#166534; font-weight:700; }
+    .lose { color:#7a2f2f; }
+    .pick-A { color:#166534; }
+    .pick-B { color:#7a2f2f; }
+    .pick-D { color:#1e40af; }
+    .muted { color: var(--muted); font-size: 12px; margin-top:8px; }
+    .hdr-names, .hdr-scores { display:grid; grid-template-columns: 1fr auto 1fr; align-items:center; gap:6px; }
+    .hdr-names span { font-weight:600; }
+    .hdr-scores .spacer { visibility:hidden; }
+    .cell-correct { background: rgba(93,212,162,0.18); color:#14532d; font-weight:600; }
+    .cell-wrong { background: rgba(255,107,107,0.16); color:#7a1f1f; font-weight:600; }
+  </style>
+</head>
+<body>
+  <header class="header-bar">
+    <h1>Group Pick Matrix</h1>
+    <nav>
+      <a class="btn-head" href="#" onclick="history.back(); return false;">Back</a>
+      <a href="/index.html">Home</a>
+      <a href="/groups.html">Groups</a>
+    </nav>
+  </header>
+
+  <main>
+    <div class="card">
+      <div class="muted" style="margin-bottom:8px">Group: <span id="groupName">Group 1</span></div>
+      <div style="overflow:auto">
+        <table id="matrixTable">
+          <thead id="matrixHead"></thead>
+          <tbody id="matrixBody"></tbody>
+        </table>
+      </div>
+      <div class="muted" id="help">Columns are matches; header shows result if finished. Cells show each user's pick.</div>
+    </div>
+  </main>
+
+  <script>
+    const MATRIX_URL = 'http://127.0.0.1:5001/api/picks/matrix';
+
+    function getParam(name) {
+      const params = new URLSearchParams(location.search);
+      return params.get(name);
+    }
+
+    function matchKey(m) {
+      return `${m.home}|${m.away}|${m.kickoff}`;
+    }
+
+    function resultLabel(r) {
+      if (r === 'A') return 'A';
+      if (r === 'B') return 'B';
+      if (r === 'D') return 'D';
+      return '';
+    }
+
+    async function render() {
+      const group = getParam('group') || 'Group 1';
+      document.getElementById('groupName').textContent = group;
+      let data = { members: [], matches: [], picks: {} };
+      try {
+        const r = await fetch(`${MATRIX_URL}?group=${encodeURIComponent(group)}`, { cache: 'no-store' });
+        if (r.ok) data = await r.json();
+      } catch {}
+
+      const head = document.getElementById('matrixHead');
+      const body = document.getElementById('matrixBody');
+      head.innerHTML = '';
+      body.innerHTML = '';
+
+      // Build header
+      const trh = document.createElement('tr');
+      const thUser = document.createElement('th'); thUser.textContent = 'Users'; trh.appendChild(thUser);
+      const thScore = document.createElement('th'); thScore.textContent = 'Score'; trh.appendChild(thScore);
+      data.matches.forEach((m, idx) => {
+        const th = document.createElement('th');
+        const labelTop = `${m.home} vs ${m.away}`;
+        const res = resultLabel(m.result);
+        // Determine display score and winner style
+        const hs = m.home_score || '';
+        const as = m.away_score || '';
+        let homeCls = '', awayCls = '';
+        if (res === 'A') { homeCls = 'win'; awayCls = 'lose'; }
+        else if (res === 'B') { homeCls = 'lose'; awayCls = 'win'; }
+        th.innerHTML = `
+          <div class="hdr-names"><span class="${homeCls}">${m.home}</span><span>vs</span><span class="${awayCls}">${m.away}</span></div>
+          <div class="hdr-scores"><span class="${homeCls}">${hs}</span><span class="spacer">vs</span><span class="${awayCls}">${as}</span></div>
+        `;
+        trh.appendChild(th);
+      });
+      head.appendChild(trh);
+
+      // Build body rows per member
+      data.members.forEach((name) => {
+        const tr = document.createElement('tr');
+        const tdName = document.createElement('td'); tdName.textContent = name; tr.appendChild(tdName);
+        const tdScore = document.createElement('td'); tdScore.textContent = '0'; tr.appendChild(tdScore);
+        let correct = 0;
+        data.matches.forEach((m) => {
+          const td = document.createElement('td');
+          const key = `${name}|${matchKey(m)}`;
+          const pick = data.picks[key] || '';
+          let text = '';
+          if (pick === 'A') text = m.home;
+          else if (pick === 'B') text = m.away;
+          else if (pick === 'D') text = 'Draw';
+          td.textContent = text;
+          if (pick) td.classList.add(`pick-${pick}`);
+          // Correctness coloring using result letter
+          if (m.result === 'A' || m.result === 'B' || m.result === 'D') {
+            if (pick && pick === m.result) td.classList.add('cell-correct');
+            else if (pick) td.classList.add('cell-wrong');
+            if (pick && pick === m.result) correct += 1;
+          }
+          tr.appendChild(td);
+        });
+        tdScore.textContent = String(correct);
+        body.appendChild(tr);
+      });
+    }
+
+    render();
+  </script>
+</body>
+</html>
+
+

@@ -37,27 +37,36 @@
       const err = document.getElementById('err');
       err.style.display = 'none';
       try {
+        console.debug('[login] sending', { name });
         const r = await fetch(LOGIN_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
           body: JSON.stringify({ name, password })
         });
+        console.debug('[login] response', r.status, r.statusText);
         if (!r.ok) {
-          const j = await r.json().catch(() => ({}));
-          throw new Error(j.error || 'Login failed');
+          let j = {};
+          try { j = await r.json(); } catch {}
+          console.debug('[login] error body', j);
+          throw new Error(j.error || `Login failed (${r.status})`);
         }
+        console.debug('[login] success, redirecting');
         location.href = '/groups.html';
       } catch (e) {
         err.textContent = e.message || 'Login failed';
         err.style.display = 'block';
+        console.debug('[login] exception', e);
       }
     });
 
     (async function(){
       try {
+        console.debug('[me] checking session');
         const r = await fetch(ME_URL, { credentials: 'include' });
+        console.debug('[me] response', r.status);
         const me = await r.json();
+        console.debug('[me] body', me);
         if (me && me.loggedIn) location.href = '/groups.html';
       } catch {}
     })();
