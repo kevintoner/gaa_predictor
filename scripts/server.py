@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sqlite3
 from pathlib import Path
+import base64
 from flask import Flask, jsonify, request, make_response, send_from_directory
 from flask_cors import CORS
 from datetime import datetime, timedelta, timezone
@@ -59,6 +60,25 @@ def serve_pricing():
 @app.get("/matrix.html")
 def serve_matrix():
     return send_from_directory(PROJECT_ROOT, "matrix.html")
+
+
+def _has_team_id_columns(cur: sqlite3.Cursor) -> bool:
+    try:
+        cur.execute("PRAGMA table_info(matches)")
+        cols = {row[1] for row in cur.fetchall()}
+        return ("home_team_id" in cols and "away_team_id" in cols)
+    except Exception:
+        return False
+
+
+def _blob_to_data_url(blob: bytes | None) -> str | None:
+    if not blob:
+        return None
+    try:
+        b64 = base64.b64encode(blob).decode("ascii")
+        return f"data:image/png;base64,{b64}"
+    except Exception:
+        return None
 
 
 def _result_letter_sql_expr(prefix: str = "m") -> str:
@@ -169,13 +189,30 @@ def api_scores():
 def api_matches():
     with get_conn() as conn:
         cur = conn.cursor()
-        cur.execute(
-            """
-            SELECT id, home_team, away_team, competition, county, venue, kickoff_at,
-                   prediction_cutoff, home_score, away_score, match_over
-            FROM matches ORDER BY datetime(kickoff_at) ASC
-            """
-        )
+        if _has_team_id_columns(cur):
+            cur.execute(
+                """
+                SELECT m.id,
+                       th.team_name AS home_team,
+                       ta.team_name AS away_team,
+                       th.crest AS home_crest,
+                       ta.crest AS away_crest,
+                       m.competition, m.county, m.venue, m.kickoff_at,
+                       m.prediction_cutoff, m.home_score, m.away_score, m.match_over
+                FROM matches m
+                JOIN teams th ON th.id = m.home_team_id
+                JOIN teams ta ON ta.id = m.away_team_id
+                ORDER BY datetime(m.kickoff_at) ASC
+                """
+            )
+        else:
+            cur.execute(
+                """
+                SELECT id, home_team, away_team, NULL AS home_crest, NULL AS away_crest, competition, county, venue, kickoff_at,
+                       prediction_cutoff, home_score, away_score, match_over
+                FROM matches ORDER BY datetime(kickoff_at) ASC
+                """
+            )
         rows = [dict(r) for r in cur.fetchall()]
 
     out = {"upcoming": [], "past": []}
@@ -188,6 +225,8 @@ def api_matches():
             out["upcoming"].append({
                 "home": r["home_team"],
                 "away": r["away_team"],
+                "homeCrest": _blob_to_data_url(r.get("home_crest")),
+                "awayCrest": _blob_to_data_url(r.get("away_crest")),
                 "competition": r["competition"],
                 "county": r["county"],
                 "venue": r["venue"],
@@ -198,6 +237,8 @@ def api_matches():
             out["past"].append({
                 "home": r["home_team"],
                 "away": r["away_team"],
+                "homeCrest": _blob_to_data_url(r.get("home_crest")),
+                "awayCrest": _blob_to_data_url(r.get("away_crest")),
                 "competition": r["competition"],
                 "county": r["county"],
                 "venue": r["venue"],
@@ -424,8 +465,56 @@ def api_picks_stats():
         print(f"[picks_stats] group={group_name!r} -> group_id={group_id}")
 
         # Compute correct vs total per finished match for this group
-        cur.execute(
-            """
+        if _has_team_id_columns(cur):
+            cur.execute(
+                """
+            SELECT th.team_name AS home,
+                   ta.team_name AS away,
+                   m.kickoff_at AS kickoff,
+                   SUM(
+                     CASE WHEN p.pick = (
+                       CASE
+                         WHEN m.match_over IN ('A','B','D') THEN m.match_over
+                         ELSE (
+                           CASE
+                             WHEN (
+                                   CAST(substr(m.home_score, 1, instr(m.home_score, '-') - 1) AS INTEGER) * 3 +
+                                   CAST(substr(m.home_score, instr(m.home_score, '-') + 1) AS INTEGER)
+                                  )
+                                  >
+                                  (
+                                   CAST(substr(m.away_score, 1, instr(m.away_score, '-') - 1) AS INTEGER) * 3 +
+                                   CAST(substr(m.away_score, instr(m.away_score, '-') + 1) AS INTEGER)
+                                  ) THEN 'A'
+                             WHEN (
+                                   CAST(substr(m.away_score, 1, instr(m.away_score, '-') - 1) AS INTEGER) * 3 +
+                                   CAST(substr(m.away_score, instr(m.away_score, '-') + 1) AS INTEGER)
+                                  )
+                                  >
+                                  (
+                                   CAST(substr(m.home_score, 1, instr(m.home_score, '-') - 1) AS INTEGER) * 3 +
+                                   CAST(substr(m.home_score, instr(m.home_score, '-') + 1) AS INTEGER)
+                                  ) THEN 'B'
+                             ELSE 'D'
+                           END
+                         )
+                       END
+                     ) THEN 1 ELSE 0 END
+                   ) AS correct,
+                   COUNT(p.id) AS total
+            FROM matches m
+            JOIN teams th ON th.id = m.home_team_id
+            JOIN teams ta ON ta.id = m.away_team_id
+            JOIN picks p ON p.match_id = m.id
+            WHERE (m.match_over IS NOT NULL AND m.match_over <> '0')
+              AND p.group_id = ?
+            GROUP BY p.match_id
+            """,
+            (group_id,)
+            )
+        else:
+            cur.execute(
+                """
             SELECT m.home_team AS home, m.away_team AS away, m.kickoff_at AS kickoff,
                    SUM(
                      CASE WHEN p.pick = (
@@ -465,7 +554,7 @@ def api_picks_stats():
             GROUP BY p.match_id
             """,
             (group_id,)
-        )
+            )
         stats_rows = [dict(r) for r in cur.fetchall()]
         for r in stats_rows:
             try:
@@ -481,14 +570,30 @@ def api_picks_stats():
             uid = user["id"] if isinstance(user, sqlite3.Row) else user[0]
             uname = user["name"] if isinstance(user, sqlite3.Row) else (user[1] if len(user) > 1 else None)
             print(f"[picks_stats] logged-in user id={uid} name={uname!r}")
-            cur.execute(
-                """
-                SELECT m.home_team AS home, m.away_team AS away, m.kickoff_at AS kickoff, p.pick
-                FROM picks p JOIN matches m ON m.id = p.match_id
-                WHERE p.group_id = ? AND p.member_id = ?
-                """,
-                (group_id, uid),
-            )
+            if _has_team_id_columns(cur):
+                cur.execute(
+                    """
+                    SELECT th.team_name AS home,
+                           ta.team_name AS away,
+                           m.kickoff_at AS kickoff,
+                           p.pick
+                    FROM picks p
+                    JOIN matches m ON m.id = p.match_id
+                    JOIN teams th ON th.id = m.home_team_id
+                    JOIN teams ta ON ta.id = m.away_team_id
+                    WHERE p.group_id = ? AND p.member_id = ?
+                    """,
+                    (group_id, uid),
+                )
+            else:
+                cur.execute(
+                    """
+                    SELECT m.home_team AS home, m.away_team AS away, m.kickoff_at AS kickoff, p.pick
+                    FROM picks p JOIN matches m ON m.id = p.match_id
+                    WHERE p.group_id = ? AND p.member_id = ?
+                    """,
+                    (group_id, uid),
+                )
             for row in cur.fetchall():
                 key = f"{row['home']}|{row['away']}|{row['kickoff']}"
                 mine[key] = row["pick"]
@@ -531,25 +636,51 @@ def api_picks_matrix():
         members = [row[1] for row in members_rows]
 
         # Matches for which group has any picks (order by kickoff)
-        cur.execute(
-            """
-            SELECT DISTINCT m.id, m.home_team, m.away_team, m.kickoff_at,
-                   m.home_score, m.away_score, m.match_over AS result
-            FROM picks p JOIN matches m ON m.id = p.match_id
-            WHERE p.group_id = ?
-              AND (m.match_over IS NOT NULL AND m.match_over <> '0')
-            ORDER BY datetime(m.kickoff_at) ASC
-            """,
-            (gid,)
-        )
+        if _has_team_id_columns(cur):
+            cur.execute(
+                """
+                SELECT DISTINCT m.id, th.team_name AS home_team, ta.team_name AS away_team, m.kickoff_at,
+                       m.home_score, m.away_score, m.match_over AS result,
+                       th.crest AS home_crest, ta.crest AS away_crest
+                FROM picks p JOIN matches m ON m.id = p.match_id
+                JOIN teams th ON th.id = m.home_team_id
+                JOIN teams ta ON ta.id = m.away_team_id
+                WHERE p.group_id = ?
+                  AND (m.match_over IS NOT NULL AND m.match_over <> '0')
+                ORDER BY datetime(m.kickoff_at) ASC
+                """,
+                (gid,)
+            )
+        else:
+            cur.execute(
+                """
+                SELECT DISTINCT m.id, m.home_team, m.away_team, m.kickoff_at,
+                       m.home_score, m.away_score, m.match_over AS result,
+                       NULL AS home_crest, NULL AS away_crest
+                FROM picks p JOIN matches m ON m.id = p.match_id
+                WHERE p.group_id = ?
+                  AND (m.match_over IS NOT NULL AND m.match_over <> '0')
+                ORDER BY datetime(m.kickoff_at) ASC
+                """,
+                (gid,)
+            )
         matches_rows = cur.fetchall()
         matches = []
         match_id_to_key = {}
         for r in matches_rows:
-            mid, home, away, kickoff, home_score, away_score, result = r
+            mid, home, away, kickoff, home_score, away_score, result, home_crest, away_crest = r
             key = f"{home}|{away}|{kickoff}"
             match_id_to_key[mid] = key
-            matches.append({"home": home, "away": away, "kickoff": kickoff, "home_score": home_score, "away_score": away_score, "result": result})
+            matches.append({
+                "home": home,
+                "away": away,
+                "kickoff": kickoff,
+                "home_score": home_score,
+                "away_score": away_score,
+                "result": result,
+                "homeCrest": _blob_to_data_url(home_crest),
+                "awayCrest": _blob_to_data_url(away_crest),
+            })
 
         # Picks
         cur.execute(

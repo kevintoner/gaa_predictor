@@ -34,9 +34,11 @@
     .pick-B { color:#7a2f2f; }
     .pick-D { color:#1e40af; }
     .muted { color: var(--muted); font-size: 12px; margin-top:8px; }
-    .hdr-names, .hdr-scores { display:grid; grid-template-columns: 1fr auto 1fr; align-items:center; gap:6px; }
-    .hdr-names span { font-weight:600; }
+    .hdr-names, .hdr-scores, .hdr-crests { display:grid; grid-template-columns: 1fr auto 1fr; align-items:center; justify-items:center; gap:6px; }
+    .hdr-names span { font-weight:600; text-align:center; }
     .hdr-scores .spacer { visibility:hidden; }
+    .crest { width:28px; height:28px; object-fit: contain; filter: drop-shadow(0 0 4px rgba(0,0,0,0.08)); }
+    .hdr-crests span { text-align: center; }
     .cell-correct { background: rgba(93,212,162,0.18); color:#14532d; font-weight:600; }
     .cell-wrong { background: rgba(255,107,107,0.16); color:#7a1f1f; font-weight:600; }
   </style>
@@ -83,6 +85,19 @@
       return '';
     }
 
+    let sortBy = 'score'; // 'score' | 'name'
+    let sortDir = 'desc'; // 'asc' | 'desc'
+
+    function computeCorrect(name, matches, picks) {
+      let c = 0;
+      for (const m of matches) {
+        const key = `${name}|${matchKey(m)}`;
+        const pick = picks[key];
+        if (pick && (m.result === 'A' || m.result === 'B' || m.result === 'D') && pick === m.result) c++;
+      }
+      return c;
+    }
+
     async function render() {
       const group = getParam('group') || 'Group 1';
       document.getElementById('groupName').textContent = group;
@@ -99,8 +114,16 @@
 
       // Build header
       const trh = document.createElement('tr');
-      const thUser = document.createElement('th'); thUser.textContent = 'Users'; trh.appendChild(thUser);
-      const thScore = document.createElement('th'); thScore.textContent = 'Score'; trh.appendChild(thScore);
+      const thUser = document.createElement('th');
+      thUser.style.cursor = 'pointer';
+      thUser.textContent = 'Users' + (sortBy === 'name' ? (sortDir === 'desc' ? ' ▼' : ' ▲') : '');
+      thUser.addEventListener('click', () => { sortBy === 'name' ? (sortDir = sortDir === 'desc' ? 'asc' : 'desc') : (sortBy = 'name', sortDir = 'asc'); render(); });
+      trh.appendChild(thUser);
+      const thScore = document.createElement('th');
+      thScore.style.cursor = 'pointer';
+      thScore.textContent = 'Score' + (sortBy === 'score' ? (sortDir === 'desc' ? ' ▼' : ' ▲') : '');
+      thScore.addEventListener('click', () => { sortBy === 'score' ? (sortDir = sortDir === 'desc' ? 'asc' : 'desc') : (sortBy = 'score', sortDir = 'desc'); render(); });
+      trh.appendChild(thScore);
       data.matches.forEach((m, idx) => {
         const th = document.createElement('th');
         const labelTop = `${m.home} vs ${m.away}`;
@@ -111,7 +134,10 @@
         let homeCls = '', awayCls = '';
         if (res === 'A') { homeCls = 'win'; awayCls = 'lose'; }
         else if (res === 'B') { homeCls = 'lose'; awayCls = 'win'; }
+        const homeCrest = m.homeCrest ? `<img class="crest" src="${m.homeCrest}" alt="">` : '';
+        const awayCrest = m.awayCrest ? `<img class="crest" src="${m.awayCrest}" alt="">` : '';
         th.innerHTML = `
+          <div class="hdr-crests"><span>${homeCrest}</span><span></span><span>${awayCrest}</span></div>
           <div class="hdr-names"><span class="${homeCls}">${m.home}</span><span>vs</span><span class="${awayCls}">${m.away}</span></div>
           <div class="hdr-scores"><span class="${homeCls}">${hs}</span><span class="spacer">vs</span><span class="${awayCls}">${as}</span></div>
         `;
@@ -119,12 +145,17 @@
       });
       head.appendChild(trh);
 
-      // Build body rows per member
-      data.members.forEach((name) => {
+      // Build body rows per member with sorting
+      const rows = data.members.map(name => ({ name, score: computeCorrect(name, data.matches, data.picks) }));
+      rows.sort((a, b) => {
+        if (sortBy === 'score') return sortDir === 'desc' ? (b.score - a.score) : (a.score - b.score);
+        return sortDir === 'desc' ? b.name.localeCompare(a.name) : a.name.localeCompare(b.name);
+      });
+
+      rows.forEach(({ name, score }) => {
         const tr = document.createElement('tr');
         const tdName = document.createElement('td'); tdName.textContent = name; tr.appendChild(tdName);
-        const tdScore = document.createElement('td'); tdScore.textContent = '0'; tr.appendChild(tdScore);
-        let correct = 0;
+        const tdScore = document.createElement('td'); tdScore.textContent = String(score); tr.appendChild(tdScore);
         data.matches.forEach((m) => {
           const td = document.createElement('td');
           const key = `${name}|${matchKey(m)}`;
@@ -139,11 +170,9 @@
           if (m.result === 'A' || m.result === 'B' || m.result === 'D') {
             if (pick && pick === m.result) td.classList.add('cell-correct');
             else if (pick) td.classList.add('cell-wrong');
-            if (pick && pick === m.result) correct += 1;
           }
           tr.appendChild(td);
         });
-        tdScore.textContent = String(correct);
         body.appendChild(tr);
       });
     }
