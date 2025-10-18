@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Create Group</title>
+  <style>
+    :root { --bg:#0b1220; --card:#131b2e; --muted:#8ea0bc; --text:#e8eefc; --border:#22304c; --accent:#5dd4a2; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family: ui-sans-serif,-apple-system,Segoe UI,Roboto,Helvetica,Arial; background: radial-gradient(1200px 800px at 20% 0%, #101a30 0%, var(--bg) 60%); color: var(--text); min-height:100vh; display:flex; flex-direction:column; }
+    header { padding:24px 20px 8px; display:flex; gap:12px 18px; align-items:baseline; flex-wrap:wrap; }
+    h1 { margin:0; font-size:22px; letter-spacing:0.2px; }
+    nav { margin-left:auto; }
+    nav a { color:#8fb8ff; text-decoration:none; margin-right:12px; }
+    nav a:hover { text-decoration:underline; }
+    main { width:100%; max-width:720px; margin:12px auto 40px; padding:0 16px; flex:1; }
+    .card { background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.00)); border:1px solid var(--border); border-radius:14px; padding:16px; }
+    label { display:block; margin:12px 0 6px; color: var(--muted); font-size: 13px; }
+    input[type="text"], select, input[type="email"] { width:100%; background: transparent; border: 1px solid var(--border); color: var(--text); padding: 10px 12px; border-radius: 8px; font-size: 14px; }
+    .btn { background: transparent; color: var(--text); border: 1px solid var(--border); padding: 8px 12px; border-radius: 10px; cursor: pointer; font-size: 14px; }
+    .btn:hover { border-color: #34507c; }
+    .muted { color: var(--muted); font-size: 13px; }
+    .emails { display:grid; gap:8px; margin-top:8px; }
+    .email-row { display:grid; grid-template-columns: 1fr auto; gap:8px; align-items:center; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Create new group</h1>
+    <nav>
+      <a href="/groups.html">Groups</a>
+      <a href="/index.html">Home</a>
+    </nav>
+  </header>
+
+  <main>
+    <div class="card">
+      <label for="groupName">Group name</label>
+      <input type="text" id="groupName" placeholder="e.g. Lavey group" />
+
+      <label for="county">County</label>
+      <select id="county"></select>
+
+      <label>Emails (optional)</label>
+      <div id="emails" class="emails"></div>
+      <div style="margin-top:8px">
+        <button class="btn" id="addEmail">Add email</button>
+      </div>
+
+      <div style="margin-top:16px">
+        <button class="btn" id="createBtn">Create group</button>
+      </div>
+      <div class="muted" id="msg" style="margin-top:10px"></div>
+    </div>
+  </main>
+
+  <script>
+    const GROUPS_KEY = 'my_groups_v1';
+    const COUNTIES_32 = [
+      'Antrim','Armagh','Carlow','Cavan','Clare','Cork','Derry','Donegal','Down','Dublin','Fermanagh','Galway','Kerry','Kildare','Kilkenny','Laois','Leitrim','Limerick','Longford','Louth','Mayo','Meath','Monaghan','Offaly','Roscommon','Sligo','Tipperary','Tyrone','Waterford','Westmeath','Wexford','Wicklow'
+    ];
+
+    function loadGroups() { try { return JSON.parse(localStorage.getItem(GROUPS_KEY)) || []; } catch { return []; } }
+    function saveGroups(groups) { try { localStorage.setItem(GROUPS_KEY, JSON.stringify(groups)); } catch {} }
+
+    function randomInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
+    function randomFutureDeadlineISO(maxDays = 2) {
+      const now = Date.now();
+      const minMs = 60 * 1000;
+      const maxMs = maxDays * 24 * 60 * 60 * 1000;
+      const delta = randomInt(minMs, maxMs);
+      return new Date(now + delta).toISOString();
+    }
+
+    function addEmailRow(value = '') {
+      const emails = document.getElementById('emails');
+      const row = document.createElement('div');
+      row.className = 'email-row';
+      row.innerHTML = `
+        <input type="email" placeholder="name@example.com" value="${value}" />
+        <button class="btn" type="button">Remove</button>
+      `;
+      row.querySelector('button').addEventListener('click', () => row.remove());
+      emails.appendChild(row);
+    }
+
+    function init() {
+      const countySelect = document.getElementById('county');
+      COUNTIES_32.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c; opt.textContent = c; countySelect.appendChild(opt);
+      });
+      document.getElementById('addEmail').addEventListener('click', (e) => { e.preventDefault(); addEmailRow(''); });
+      addEmailRow('');
+
+      document.getElementById('createBtn').addEventListener('click', () => {
+        const name = (document.getElementById('groupName').value || '').trim();
+        const county = countySelect.value;
+        if (!name) { document.getElementById('msg').textContent = 'Enter a group name.'; return; }
+        const emailInputs = Array.from(document.querySelectorAll('#emails input[type="email"]'));
+        const emails = emailInputs.map(i => i.value.trim()).filter(v => !!v);
+
+        const groups = loadGroups();
+        if (groups.find(g => g.name === name)) { document.getElementById('msg').textContent = 'A group with this name already exists.'; return; }
+        groups.push({ name, members: randomInt(5, 50), deadline: randomFutureDeadlineISO(), county, emails });
+        saveGroups(groups);
+        document.getElementById('msg').textContent = 'Group created. Redirecting…';
+        setTimeout(() => { location.href = '/groups.html'; }, 800);
+      });
+    }
+
+    init();
+  </script>
+</body>
+</html>
+
+

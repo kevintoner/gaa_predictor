@@ -1,0 +1,240 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>My Groups</title>
+  <style>
+    :root {
+      --bg: #0b1220;
+      --card: #131b2e;
+      --muted: #8ea0bc;
+      --text: #e8eefc;
+      --accent: #5dd4a2;
+      --border: #22304c;
+      --danger: #ff6b6b;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: ui-sans-serif, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      background: radial-gradient(1200px 800px at 20% 0%, #101a30 0%, var(--bg) 60%);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      padding: 24px 20px 8px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: 12px 18px;
+    }
+
+    h1 { margin: 0; font-size: 22px; letter-spacing: 0.2px; }
+    .sub { color: var(--muted); font-size: 14px; }
+
+    nav a { color: #8fb8ff; text-decoration: none; margin-right: 12px; }
+    nav a:hover { text-decoration: underline; }
+
+    main { width: 100%; max-width: 680px; margin: 12px auto 40px; padding: 0 16px; flex: 1; }
+
+    .card { background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.00)); border: 1px solid var(--border); border-radius: 14px; padding: 14px; }
+    .list { display: grid; gap: 10px; margin-top: 12px; }
+    .item { display: grid; grid-template-columns: 1fr; align-items: center; gap: 10px; border: 1px solid var(--border); padding: 10px 12px; border-radius: 10px; }
+    .item .name { font-weight: 600; }
+    .meta-line { color: var(--muted); font-size: 12px; margin-top: 4px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    .chip { border: 1px solid var(--border); border-radius: 999px; padding: 2px 8px; font-size: 11px; }
+    .count { display: inline-flex; align-items: center; gap: 6px; }
+    .count .num { font-variant-numeric: tabular-nums; font-weight: 600; }
+    .actions { display: flex; gap: 8px; }
+    .btn { background: transparent; color: var(--text); border: 1px solid var(--border); padding: 6px 10px; border-radius: 8px; cursor: pointer; font-size: 14px; }
+    .btn:hover { border-color: #34507c; }
+    .btn-danger { border-color: #4a1f1f; color: #ffd6d6; }
+    .btn-danger:hover { border-color: #7a2f2f; color: #fff; }
+
+    form.add { display: grid; grid-template-columns: 1fr auto; gap: 10px; margin-top: 12px; }
+    input[type="text"] { background: transparent; border: 1px solid var(--border); color: var(--text); padding: 10px 12px; border-radius: 8px; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>My Groups</h1>
+    <div class="sub">Create and manage your groups</div>
+    <nav style="margin-left:auto">
+      <a href="/index.html">Home</a>
+      <a href="/create-group.html">Create Group</a>
+  <a href="/pricing.html">Pricing</a>
+    </nav>
+  </header>
+
+  <main>
+    <div class="card">
+      <form class="add" id="addForm">
+        <input type="text" id="groupInput" placeholder="Add a new group…" autocomplete="off" />
+        <button class="btn" type="submit">Add</button>
+      </form>
+
+      <div class="list" id="groupList"></div>
+    </div>
+  </main>
+
+  <script>
+    const STORAGE_KEY = 'my_groups_v1';
+    const DEFAULT_GROUPS = ['Lavey group', 'Work Group', 'Family Group'];
+    const DB_GROUPS_URL = 'http://127.0.0.1:5001/api/groups';
+
+    function randomInt(min, max) {
+      return Math.floor(Math.random() * (max - min + 1)) + min;
+    }
+
+    function randomFutureDeadlineISO(maxDays = 2) {
+      const now = Date.now();
+      const minMs = 60 * 1000; // at least 1 minute in the future
+      const maxMs = maxDays * 24 * 60 * 60 * 1000;
+      const delta = randomInt(minMs, maxMs);
+      return new Date(now + delta).toISOString();
+    }
+
+    function normalizeGroups(rawVal) {
+      // Accept array of strings or array of objects
+      if (!Array.isArray(rawVal)) return DEFAULT_GROUPS.map(n => ({ name: n, members: randomInt(5, 50), deadline: randomFutureDeadlineISO() }));
+      if (rawVal.length === 0) return [];
+      if (typeof rawVal[0] === 'string') {
+        return rawVal.map(n => ({ name: n, members: randomInt(5, 50), deadline: randomFutureDeadlineISO() }));
+      }
+      return rawVal.map(g => ({
+        name: (g && g.name) ? String(g.name) : 'Untitled',
+        members: Number.isFinite(g && g.members) ? Math.max(1, Math.floor(g.members)) : randomInt(5, 50),
+        deadline: (() => {
+          const iso = g && g.deadline ? String(g.deadline) : null;
+          const t = iso ? new Date(iso).getTime() : NaN;
+          if (!Number.isFinite(t) || t <= Date.now()) return randomFutureDeadlineISO();
+          return iso;
+        })()
+      }));
+    }
+
+    function loadGroups() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return normalizeGroups(DEFAULT_GROUPS);
+        const parsed = JSON.parse(raw);
+        const normalized = normalizeGroups(parsed);
+        // Write back normalized structure to persist migration from strings → objects
+        saveGroups(normalized);
+        return normalized;
+      } catch (e) {
+        const fallback = normalizeGroups(DEFAULT_GROUPS);
+        saveGroups(fallback);
+        return fallback;
+      }
+    }
+
+    function saveGroups(groups) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(groups));
+    }
+
+    function fmtDeadlineShort(iso) {
+      const d = new Date(iso);
+      return d.toLocaleString([], { year: 'numeric', month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+    }
+
+    function msToCountdown(ms) {
+      if (ms <= 0) return 'Closed';
+      const s = Math.floor(ms / 1000);
+      const days = Math.floor(s / 86400);
+      const hrs = Math.floor((s % 86400) / 3600);
+      const mins = Math.floor((s % 3600) / 60);
+      const secs = s % 60;
+      const parts = [];
+      if (days) parts.push(days + 'd');
+      parts.push(String(hrs).padStart(2, '0') + 'h');
+      parts.push(String(mins).padStart(2, '0') + 'm');
+      parts.push(String(secs).padStart(2, '0') + 's');
+      return parts.join(' ');
+    }
+
+    let tickerId = null;
+    function startTicker() {
+      if (tickerId) clearInterval(tickerId);
+      const update = () => {
+        const now = Date.now();
+        document.querySelectorAll('.countdown').forEach(el => {
+          const iso = el.getAttribute('data-deadline');
+          const ms = new Date(iso).getTime() - now;
+          el.textContent = msToCountdown(ms);
+        });
+      };
+      update();
+      tickerId = setInterval(update, 1000);
+    }
+
+    async function fetchGroupsFromDB() {
+      try {
+        const res = await fetch(DB_GROUPS_URL, { cache: 'no-store' });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const rows = await res.json();
+        if (!Array.isArray(rows)) throw new Error('Bad JSON');
+        return rows.map(r => ({
+          name: String(r.name ?? 'Untitled'),
+          members: Number.isFinite(r.members) ? r.members : 0,
+          deadline: randomFutureDeadlineISO()
+        }));
+      } catch (e) {
+        throw e;
+      }
+    }
+
+    async function render() {
+      const container = document.getElementById('groupList');
+      container.innerHTML = '';
+      let groups = [];
+      try {
+        groups = await fetchGroupsFromDB();
+      } catch (e) {
+        groups = loadGroups();
+      }
+      groups.forEach((g, idx) => {
+        const row = document.createElement('div');
+        row.className = 'item';
+        row.innerHTML = `
+          <a href="/group.html?name=${encodeURIComponent(g.name)}" style="color:inherit; text-decoration:none;">
+            <div class="name">${g.name}</div>
+            <div class="meta-line">
+              <span class="count">Members: <span class="num">${g.members}</span></span>
+              <span class="chip">Deadline: <span>${fmtDeadlineShort(g.deadline)}</span></span>
+              <span class="chip">T− <span class="countdown" data-deadline="${g.deadline}">…</span></span>
+            </div>
+          </a>
+        `;
+
+        container.appendChild(row);
+      });
+
+      startTicker();
+    }
+
+    document.getElementById('addForm').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const input = document.getElementById('groupInput');
+      const val = (input.value || '').trim();
+      if (!val) return;
+      const groups = loadGroups();
+      if (!groups.find(g => g.name === val)) groups.push({ name: val, members: randomInt(5, 50), deadline: randomFutureDeadlineISO() });
+      saveGroups(groups);
+      input.value = '';
+      render();
+    });
+
+    render();
+  </script>
+</body>
+</html>
+
+

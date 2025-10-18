@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Gaelic Football (GAA) - Today's Results</title>
+  <style>
+    :root {
+      --bg: #0b1220;
+      --card: #131b2e;
+      --muted: #8ea0bc;
+      --text: #e8eefc;
+      --accent: #5dd4a2;
+      --live: #ff5d5d;
+      --border: #22304c;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: ui-sans-serif, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      background: radial-gradient(1200px 800px at 20% 0%, #101a30 0%, var(--bg) 60%);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      padding: 24px 20px 8px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: 12px 18px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 22px;
+      letter-spacing: 0.2px;
+    }
+
+    .sub {
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .controls {
+      margin-left: auto;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    button {
+      background: transparent;
+      color: var(--text);
+      border: 1px solid var(--border);
+      padding: 8px 12px;
+      border-radius: 10px;
+      cursor: pointer;
+    }
+
+    button:hover { border-color: #34507c; }
+
+    main {
+      width: 100%;
+      max-width: 980px;
+      margin: 8px auto 40px;
+      padding: 0 16px;
+      flex: 1;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 14px;
+    }
+
+    .card {
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.00));
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 12px;
+    }
+
+    .row { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 10px; }
+    .teams { display: grid; gap: 8px; }
+    .team { display: grid; grid-template-columns: 24px 1fr auto; align-items: center; gap: 8px; }
+    .team img { width: 22px; height: 22px; object-fit: contain; filter: drop-shadow(0 0 10px rgba(0,0,0,0.2)); }
+    .name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .score { font-variant-numeric: tabular-nums; font-weight: 600; }
+    .meta { display: flex; gap: 8px; align-items: center; color: var(--muted); font-size: 12px; margin-top: 10px; }
+    .badge { padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border); font-size: 11px; color: var(--muted); }
+    .badge.live { color: #fff; border-color: transparent; background: linear-gradient(90deg, var(--live), #ff8b5d); }
+    .badge.final { color: var(--accent); border-color: #2a5247; background: rgba(93, 212, 162, 0.08); }
+    .empty { color: var(--muted); padding: 18px; border: 1px dashed var(--border); border-radius: 12px; }
+
+    footer { text-align: center; color: var(--muted); font-size: 12px; padding: 18px; }
+    a { color: #8fb8ff; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+  </style>
+  <link rel="icon" href="data:," />
+  <meta name="color-scheme" content="dark light" />
+  <meta name="description" content="GAA Gaelic football results for today (placeholder or live)." />
+  <meta name="referrer" content="no-referrer" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+  <!-- Uses ESPN public scoreboard API; no key required. -->
+  <!-- If you see CORS issues, serve this file via a local web server (see README below). -->
+</head>
+<body>
+  <header>
+    <h1>Gaelic Football — Today's Results</h1>
+    <div class="sub" id="dateText"></div>
+    <div class="controls">
+      <div class="sub" id="updatedText">Loading…</div>
+      <button id="refreshBtn" title="Refresh now">Refresh</button>
+    </div>
+    <nav style="width:100%; margin-top:6px;">
+      <a href="/groups.html">My Groups</a>
+      <a href="/pricing.html" style="margin-left:12px;">Pricing</a>
+    </nav>
+  </header>
+
+  <main>
+    <div id="matches" class="grid"></div>
+    <div id="emptyState" class="empty" style="display:none;">No Gaelic football matches today.</div>
+  </main>
+
+  <footer>
+    <span id="dataSource">Source: <a href="https://www.gaa.ie/football/fixtures-results/" target="_blank" rel="noreferrer noopener">GAA Fixtures & Results</a> • Auto-refreshes every 60s</span>
+  </footer>
+
+  <script>
+    const londonTimeZone = 'Europe/Dublin';
+    const USE_PLACEHOLDER = true; // set to false to use live ESPN API
+
+    // 1x1 transparent pixel for placeholder logos
+    const TRANSPARENT_IMG = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==';
+
+    // Simple placeholder sample events
+    const PLACEHOLDER_EVENTS = [
+      {
+        date: new Date().toISOString(),
+        status: { type: { state: 'post', shortDetail: 'FT', detail: 'Full Time' } },
+        competitions: [
+          { competitors: [
+            { homeAway: 'home', score: '2-14', team: { displayName: 'Dublin', shortDisplayName: 'Dublin', logo: TRANSPARENT_IMG } },
+            { homeAway: 'away', score: '1-15', team: { displayName: 'Kerry', shortDisplayName: 'Kerry', logo: TRANSPARENT_IMG } }
+          ] }
+        ]
+      },
+      {
+        date: new Date().toISOString(),
+        status: { type: { state: 'in', shortDetail: "63'", detail: 'Second Half' } },
+        competitions: [
+          { competitors: [
+            { homeAway: 'home', score: '1-10', team: { displayName: 'Mayo', shortDisplayName: 'Mayo', logo: TRANSPARENT_IMG } },
+            { homeAway: 'away', score: '1-10', team: { displayName: 'Galway', shortDisplayName: 'Galway', logo: TRANSPARENT_IMG } }
+          ] }
+        ]
+      },
+      {
+        date: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
+        status: { type: { state: 'pre', shortDetail: '', detail: 'Scheduled' } },
+        competitions: [
+          { competitors: [
+            { homeAway: 'home', score: '', team: { displayName: 'Tyrone', shortDisplayName: 'Tyrone', logo: TRANSPARENT_IMG } },
+            { homeAway: 'away', score: '', team: { displayName: 'Donegal', shortDisplayName: 'Donegal', logo: TRANSPARENT_IMG } }
+          ] }
+        ]
+      }
+    ];
+
+    function pad2(n) { return n.toString().padStart(2, '0'); }
+
+    function getYYYYMMDDInTimeZone(timeZone) {
+      const now = new Date();
+      const parts = new Intl.DateTimeFormat('en-GB', {
+        timeZone,
+        year: 'numeric', month: '2-digit', day: '2-digit'
+      }).formatToParts(now).reduce((acc, p) => (acc[p.type] = p.value, acc), {});
+      return `${parts.year}${parts.month}${parts.day}`;
+    }
+
+    function formatTimeInTZ(isoString, timeZone) {
+      const d = new Date(isoString);
+      return new Intl.DateTimeFormat('en-GB', { timeZone, hour: '2-digit', minute: '2-digit' }).format(d);
+    }
+
+    function setHeaderDates() {
+      const nowLondon = new Date(new Date().toLocaleString('en-GB', { timeZone: londonTimeZone }));
+      const dateText = nowLondon.toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+      document.getElementById('dateText').textContent = dateText;
+    }
+
+    async function fetchScoreboard() {
+      const yyyymmdd = getYYYYMMDDInTimeZone(londonTimeZone);
+      const url = `https://site.api.espn.com/apis/v2/sports/soccer/eng.1/scoreboard?dates=${yyyymmdd}`;
+      const res = await fetch(url, { cache: 'no-store' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.json();
+    }
+
+    function renderMatches(events) {
+      const container = document.getElementById('matches');
+      const emptyState = document.getElementById('emptyState');
+      container.innerHTML = '';
+
+      if (!events || events.length === 0) {
+        emptyState.style.display = 'block';
+        return;
+      }
+      emptyState.style.display = 'none';
+
+      for (const ev of events) {
+        const comp = ev.competitions?.[0] || {};
+        const competitors = comp.competitors || [];
+        const home = competitors.find(c => c.homeAway === 'home') || {};
+        const away = competitors.find(c => c.homeAway === 'away') || {};
+        const homeTeam = home.team || {};
+        const awayTeam = away.team || {};
+        const homeScore = home.score ?? '';
+        const awayScore = away.score ?? '';
+        const state = ev.status?.type?.state || 'pre'; // pre | in | post
+        const shortDetail = ev.status?.type?.shortDetail || '';
+        const detail = ev.status?.type?.detail || '';
+
+        const card = document.createElement('div');
+        card.className = 'card';
+
+        const teams = document.createElement('div');
+        teams.className = 'teams';
+
+        const rowHome = document.createElement('div');
+        rowHome.className = 'team';
+        rowHome.innerHTML = `
+          <img src="${homeTeam.logo || ''}" alt="" />
+          <div class="name" title="${homeTeam.displayName || ''}">${homeTeam.shortDisplayName || homeTeam.displayName || ''}</div>
+          <div class="score">${state === 'pre' ? '' : homeScore}</div>
+        `;
+
+        const rowAway = document.createElement('div');
+        rowAway.className = 'team';
+        rowAway.innerHTML = `
+          <img src="${awayTeam.logo || ''}" alt="" />
+          <div class="name" title="${awayTeam.displayName || ''}">${awayTeam.shortDisplayName || awayTeam.displayName || ''}</div>
+          <div class="score">${state === 'pre' ? '' : awayScore}</div>
+        `;
+
+        teams.appendChild(rowHome);
+        teams.appendChild(rowAway);
+
+        const meta = document.createElement('div');
+        meta.className = 'meta';
+        const statusBadge = document.createElement('span');
+        statusBadge.className = 'badge';
+        if (state === 'in') statusBadge.classList.add('live');
+        if (state === 'post') statusBadge.classList.add('final');
+
+        const kickoff = formatTimeInTZ(ev.date, londonTimeZone);
+        let statusText = shortDetail || detail || '';
+        if (state === 'pre') statusText = `KO ${kickoff}`;
+
+        statusBadge.textContent = state === 'in' ? 'LIVE' : (state === 'post' ? 'FT' : 'SCHEDULED');
+        const statusDetail = document.createElement('span');
+        statusDetail.textContent = statusText;
+
+        meta.appendChild(statusBadge);
+        meta.appendChild(statusDetail);
+
+        const cardRow = document.createElement('div');
+        cardRow.className = 'row';
+        cardRow.appendChild(teams);
+        const scoreBlock = document.createElement('div');
+        scoreBlock.style.textAlign = 'right';
+        scoreBlock.style.fontSize = '18px';
+        scoreBlock.style.fontWeight = '700';
+        scoreBlock.textContent = state === 'pre' ? '' : `${homeScore}–${awayScore}`;
+        cardRow.appendChild(scoreBlock);
+
+        card.appendChild(cardRow);
+        card.appendChild(meta);
+
+        container.appendChild(card);
+      }
+    }
+
+    function setUpdatedText() {
+      const now = new Date();
+      const t = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      document.getElementById('updatedText').textContent = `Updated ${t}`;
+    }
+
+    async function refresh() {
+      try {
+        if (USE_PLACEHOLDER) {
+          renderMatches(PLACEHOLDER_EVENTS);
+          setUpdatedText();
+          return;
+        }
+        const data = await fetchScoreboard();
+        const events = Array.isArray(data.events) ? data.events : [];
+        renderMatches(events);
+        setUpdatedText();
+      } catch (err) {
+        console.error(err);
+        document.getElementById('matches').innerHTML = '';
+        const empty = document.getElementById('emptyState');
+        empty.style.display = 'block';
+        empty.textContent = 'Unable to load results right now.';
+        document.getElementById('updatedText').textContent = 'Load failed';
+      }
+    }
+
+    function setupAutoRefresh() {
+      document.getElementById('refreshBtn').addEventListener('click', refresh);
+      if (!USE_PLACEHOLDER) setInterval(refresh, 60000); // 60s for live data
+      const ds = document.getElementById('dataSource');
+      if (ds && USE_PLACEHOLDER) ds.textContent = 'Showing placeholder GAA data • No live updates';
+    }
+
+    // Init
+    setHeaderDates();
+    setupAutoRefresh();
+    refresh();
+  </script>
+</body>
+</html>
+
+

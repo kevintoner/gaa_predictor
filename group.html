@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title id="pageTitle">Group</title>
+  <style>
+    :root { --bg:#f5f7fb; --card:#ffffff; --muted:#5b6b86; --text:#0f172a; --border:#e2e8f0; --accent:#2563eb; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family: ui-sans-serif,-apple-system,Segoe UI,Roboto,Helvetica,Arial; background: radial-gradient(1200px 800px at 20% 0%, #ffffff 0%, var(--bg) 60%); color: var(--text); min-height:100vh; display:flex; flex-direction:column; }
+    header { padding:24px 20px 8px; display:flex; flex-wrap:wrap; align-items:baseline; gap:12px 18px; }
+    h1 { margin:0; font-size:22px; letter-spacing:0.2px; }
+    .sub { color: var(--muted); font-size:14px; }
+    nav a { color:#8fb8ff; text-decoration:none; margin-right:12px; }
+    nav a:hover { text-decoration:underline; }
+    main { width:100%; max-width:600px; margin:12px auto 40px; padding:0 16px; flex:1; }
+    .card { background: var(--card); border:1px solid var(--border); border-radius:14px; padding:14px; }
+    table { width:100%; border-collapse: collapse; }
+    th, td { border-bottom:1px solid var(--border); padding:10px 8px; text-align:left; }
+    th:nth-child(2), td:nth-child(2) { text-align:center; }
+    th { color: var(--muted); font-weight:600; }
+    tbody tr:hover { background: rgba(255,255,255,0.02); }
+    .section-title { color: var(--muted); font-size: 14px; margin: 16px 0 8px; }
+    .upcoming-container { width: 100%; max-width: 600px; margin: 0 auto 40px; padding: 0 16px; }
+    .matches { display: grid; gap: 10px; }
+    .match-card { border:1px solid var(--border); border-radius:12px; padding:12px 14px; background: var(--card); text-align: center; cursor: pointer; transition: border-color 0.2s ease, box-shadow 0.2s ease; }
+    .match-card:hover { border-color: #93c5fd; box-shadow: 0 2px 12px rgba(15,23,42,0.06); }
+    .match-card.expanded { box-shadow: 0 0 0 1px rgba(37,99,235,0.18) inset; }
+    .match-row { display:grid; grid-template-columns: 1fr; gap: 6px; align-items:center; justify-items: center; }
+    .teams-line { font-weight:600; }
+    .winner { color: #16a34a; font-weight: 700; }
+    .muted { color: var(--muted); font-size: 12px; }
+    .choices { display:none; margin-top:10px; }
+    .match-card.expanded .choices { display:block; }
+    .btn-row { display:flex; gap:8px; justify-content:center; flex-wrap:wrap; }
+    .btn-choice { background: transparent; color: var(--text); border: 1px solid var(--border); padding: 8px 12px; border-radius: 10px; cursor: pointer; font-size: 14px; }
+    .btn-choice:hover { border-color: #34507c; }
+    .btn-choice.selected { border-color: #2a5247; background: rgba(93,212,162,0.12); }
+    /* Past matches */
+    .past-container { width: 100%; max-width: 600px; margin: 0 auto 60px; padding: 0 16px; }
+    .past-card { border:1px solid var(--border); border-radius:12px; padding:12px 14px; background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0)); }
+    .past-card.correct { border-color: #2a5247; box-shadow: 0 0 0 5px rgba(93,212,162,0.18) inset; }
+    .past-card.incorrect { border-color: #7a2f2f; box-shadow: 0 0 0 5px rgba(255,107,107,0.16) inset; }
+    .past-row { display:grid; grid-template-columns: 1fr auto; gap: 10px; align-items:center; }
+    .pie { width: 80px; height: 80px; }
+    .submit-row { margin-top:10px; display:none; }
+    .prediction-message { margin-top:8px; color: var(--muted); font-weight: 600; }
+    .match-card.submitted { opacity: 0.65; }
+    /* Live badge */
+    .live-badge { color:#ef4444; font-weight:700; letter-spacing:0.5px; animation: live-blink 1s steps(2, end) infinite; }
+    @keyframes live-blink { 0% { opacity: 1; } 50% { opacity: 0.15; } 100% { opacity: 1; } }
+    /* Toolbar header */
+    .toolbar { display:flex; align-items:center; justify-content:space-between; background: linear-gradient(180deg, rgba(37,99,235,0.12), rgba(37,99,235,0.08)); border:1px solid #bfdbfe; border-radius:10px; padding:8px 12px; color:#1e3a8a; font-weight:600; }
+    /* Colored page header */
+    .header-bar { background: linear-gradient(180deg, rgba(37,99,235,0.95), rgba(37,99,235,0.85)); color: #ffffff; border-bottom: 1px solid #1e40af; }
+    .header-bar a { color: #eaf2ff; }
+    .header-bar a:hover { text-decoration: underline; }
+    .header-bar .sub { color: #eaf2ff; }
+  </style>
+</head>
+<body>
+  <header class="header-bar">
+    <h1 id="groupHeader">Group</h1>
+    <div class="sub" id="meta"></div>
+    <nav style="margin-left:auto">
+      <a href="/groups.html">Groups</a>
+      <a href="/index.html">Home</a>
+      <a href="/pricing.html">Pricing</a>
+      <a href="/login.html" id="loginLink">Login</a>
+      <span id="userBox" class="sub" style="display:none"></span>
+    </nav>
+  </header>
+
+  <main>
+    <div class="card">
+      <div class="toolbar" style="margin-bottom:8px">
+        <div>Scoreboard</div>
+        <div id="toolbarActions" style="display:flex; gap:8px; align-items:center">
+        </div>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th style="width:70%">Name</th>
+            <th style="width:30%">Score</th>
+          </tr>
+        </thead>
+        <tbody id="scoreBody"></tbody>
+      </table>
+    </div>
+    <div class="sub" style="margin-top:8px;" id="progressLine">45/100 game completed</div>
+  </main>
+  <div class="upcoming-container">
+    <div class="toolbar" style="margin-bottom:8px">
+      <div>Upcoming matches</div>
+      <div>
+        <a id="addMatchBtnUpcoming" href="/create-match.html" class="btn" style="display:none; text-decoration:none; border:1px solid var(--border); padding:6px 10px; border-radius:8px;">Add Match</a>
+      </div>
+    </div>
+    <div id="upcomingList" class="matches"></div>
+  </div>
+
+  
+
+  <div class="past-container">
+    <div class="toolbar" style="margin-bottom:8px"><div>Past matches</div></div>
+    <div id="pastList" class="matches"></div>
+  </div>
+
+  
+  <script>
+    const GROUPS_KEY = 'my_groups_v1';
+    const SCORES_URL = 'http://127.0.0.1:5001/api/scores';
+    const MATCHES_URL = 'http://127.0.0.1:5001/api/matches';
+    
+    const PICKS_URL = 'http://127.0.0.1:5001/api/picks';
+    const ME_URL = 'http://127.0.0.1:5001/api/me';
+    const LOGOUT_URL = 'http://127.0.0.1:5001/api/logout';
+    const SET_SCORE_URL = 'http://127.0.0.1:5001/api/matches/score';
+    const SCORES_KEY_PREFIX = 'group_scores_v1_';
+    const UPCOMING_KEY_PREFIX = 'group_upcoming_v1_';
+    const PICKS_KEY_PREFIX = 'group_picks_v1_';
+    const PAST_KEY_PREFIX = 'group_past_v1_';
+    const PAST_STATS_KEY_PREFIX = 'group_past_stats_v1_';
+    const PICKS_STATS_URL = 'http://127.0.0.1:5001/api/picks/stats';
+    const CURRENT_USER_KEY = 'current_user_name';
+    const SUBMISSIONS_KEY_PREFIX = 'group_submissions_v1_';
+
+    function getParam(name) {
+      const params = new URLSearchParams(location.search);
+      return params.get(name);
+    }
+
+    function loadGroups() {
+      try { return JSON.parse(localStorage.getItem(GROUPS_KEY)) || []; } catch { return []; }
+    }
+
+    function slugify(name) {
+      return encodeURIComponent(name);
+    }
+
+    function scoresKeyFor(name) { return SCORES_KEY_PREFIX + slugify(name); }
+    function upcomingKeyFor(name) { return UPCOMING_KEY_PREFIX + slugify(name); }
+    function picksKeyFor(name) { return PICKS_KEY_PREFIX + slugify(name); }
+    function pastKeyFor(name) { return PAST_KEY_PREFIX + slugify(name); }
+    function pastStatsKeyFor(name) { return PAST_STATS_KEY_PREFIX + slugify(name); }
+    function submissionsKeyFor(name) { return SUBMISSIONS_KEY_PREFIX + slugify(name); }
+
+    function randomInt(min, max) { return Math.floor(Math.random()*(max-min+1))+min; }
+
+    
+
+    async function fetchScoresFromDB(groupName) {
+      const url = `${SCORES_URL}?group=${encodeURIComponent(groupName)}`;
+      const res = await fetch(url, { cache: 'no-store', credentials: 'include' });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const rows = await res.json();
+      if (!Array.isArray(rows)) throw new Error('Bad JSON');
+      return rows.map(r => ({ name: String(r.member_name), score: Number(r.score) || 0 }));
+    }
+
+    function randomFutureISO(withinDays) {
+      const now = Date.now();
+      const minMs = 30 * 60 * 1000; // 30 minutes ahead
+      const maxMs = withinDays * 24 * 60 * 60 * 1000;
+      const delta = randomInt(minMs, maxMs);
+      return new Date(now + delta).toISOString();
+    }
+
+
+    function loadUpcoming(groupName) {
+      const key = upcomingKeyFor(groupName);
+      try {
+        const raw = localStorage.getItem(key);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed) && parsed.length) return parsed;
+        }
+      } catch {}
+      const seeded = generateUpcoming(5);
+      localStorage.setItem(key, JSON.stringify(seeded));
+      return seeded;
+    }
+
+    function fmtDateTime(iso) {
+      const d = new Date(iso);
+      return d.toLocaleString([], { year: 'numeric', month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+    }
+
+    function matchId(m) {
+      return `${m.home}|${m.away}|${m.kickoff}`;
+    }
+
+    function loadPicks(groupName) {
+      const key = picksKeyFor(groupName);
+      try { return JSON.parse(localStorage.getItem(key)) || {}; } catch { return {}; }
+    }
+
+    function savePicks(groupName, picks) {
+      const key = picksKeyFor(groupName);
+      try { localStorage.setItem(key, JSON.stringify(picks)); } catch {}
+    }
+
+    function loadSubmissions(groupName) {
+      const key = submissionsKeyFor(groupName);
+      try { return JSON.parse(localStorage.getItem(key)) || {}; } catch { return {}; }
+    }
+    function saveSubmissions(groupName, obj) {
+      const key = submissionsKeyFor(groupName);
+      try { localStorage.setItem(key, JSON.stringify(obj)); } catch {}
+    }
+
+    // Past matches helpers
+    function generateGaelicScore() {
+      const goals = randomInt(0, 4);
+      const points = randomInt(0, 20);
+      return `${goals}-${points}`;
+    }
+
+    function gaelicTotal(score) {
+      const parts = String(score).split('-');
+      const g = parseInt(parts[0] || '0', 10) || 0;
+      const p = parseInt(parts[1] || '0', 10) || 0;
+      return g * 3 + p;
+    }
+
+    function generatePast(n = 6) {
+      const arr = [];
+      for (let i=0; i<n; i++) {
+        const a = CLUB_TEAMS[Math.floor(Math.random()*CLUB_TEAMS.length)];
+        let b = CLUB_TEAMS[Math.floor(Math.random()*CLUB_TEAMS.length)];
+        if (b === a) b = CLUB_TEAMS[(CLUB_TEAMS.indexOf(b)+1)%CLUB_TEAMS.length];
+        // within last 7 days
+        const now = Date.now();
+        const pastMs = randomInt(1, 7*24*60) * 60 * 1000; // up to 7 days in minutes
+        const kickoff = new Date(now - pastMs).toISOString();
+        const sA = generateGaelicScore();
+        const sB = generateGaelicScore();
+        arr.push({ home: a, away: b, kickoff, scoreA: sA, scoreB: sB });
+      }
+      return arr;
+    }
+
+    function loadPast(groupName) {
+      const key = pastKeyFor(groupName);
+      try {
+        const raw = localStorage.getItem(key);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed) && parsed.length) return parsed;
+        }
+      } catch {}
+      const seeded = generatePast(6);
+      localStorage.setItem(key, JSON.stringify(seeded));
+      return seeded;
+    }
+
+    function loadPastStats(groupName) {
+      const key = pastStatsKeyFor(groupName);
+      try { return JSON.parse(localStorage.getItem(key)) || {}; } catch { return {}; }
+    }
+    function savePastStats(groupName, stats) {
+      const key = pastStatsKeyFor(groupName);
+      try { localStorage.setItem(key, JSON.stringify(stats)); } catch {}
+    }
+
+    function drawPie(canvas, correct, total) {
+      if (!canvas || !canvas.getContext) return;
+      const ctx = canvas.getContext('2d');
+      const w = canvas.width, h = canvas.height;
+      const r = Math.min(w, h) / 2 - 2;
+      const cx = w / 2, cy = h / 2;
+      ctx.clearRect(0, 0, w, h);
+      const good = Math.max(0, Math.min(correct, total));
+      const bad = Math.max(0, total - good);
+      const angleGood = (good / Math.max(1, total)) * Math.PI * 2;
+      // background bad (red)
+      ctx.beginPath(); ctx.moveTo(cx, cy); ctx.fillStyle = '#ff6b6b';
+      ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+      // overlay good (green)
+      ctx.beginPath(); ctx.moveTo(cx, cy); ctx.fillStyle = '#5dd4a2';
+      ctx.arc(cx, cy, r, -Math.PI / 2, -Math.PI / 2 + angleGood); ctx.fill();
+      // center label (bold, outlined for contrast)
+      ctx.font = '600 14px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = 'rgba(15,23,42,0.55)';
+      ctx.strokeText(`${good}/${total}`, cx, cy);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(`${good}/${total}`, cx, cy);
+    }
+
+    async function render() {
+      let name = getParam('name') || 'Group 1';
+      let group = { name };
+      document.title = group.name + ' — Scoreboard';
+      document.getElementById('groupHeader').textContent = group.name;
+      document.getElementById('meta').textContent = `…`;
+
+      // removed auto-recalc dev helper
+
+      const tbody = document.getElementById('scoreBody');
+      tbody.innerHTML = '';
+      let rows = [];
+      try {
+        rows = await fetchScoresFromDB(group.name);
+        if ((!rows || rows.length === 0) && group.name !== 'Group 1') {
+          // fallback to Group 1 if requested group has no scores
+          group = { name: 'Group 1' };
+          rows = await fetchScoresFromDB(group.name);
+          document.getElementById('groupHeader').textContent = group.name;
+          document.title = group.name + ' — Scoreboard';
+        }
+      } catch (e) { rows = []; }
+      rows = rows.slice().sort((a, b) => (Number(b.score) || 0) - (Number(a.score) || 0));
+
+      // Determine current user and persist a default if missing
+      let currentUser = null;
+      try { currentUser = localStorage.getItem(CURRENT_USER_KEY) || null; } catch {}
+      if (!currentUser && rows.length > 0) {
+        currentUser = rows[0].name;
+        try { localStorage.setItem(CURRENT_USER_KEY, currentUser); } catch {}
+      }
+
+      // Show members count from rows
+      try { document.getElementById('meta').textContent = `${rows.length} members`; } catch {}
+
+      rows.forEach(r => {
+        const tr = document.createElement('tr');
+        const nameHtml = (currentUser && r.name === currentUser) ? `<strong>${r.name}</strong>` : r.name;
+        tr.innerHTML = `<td>${nameHtml}</td><td>${r.score}</td>`;
+        tbody.appendChild(tr);
+      });
+
+      // Load DB picks and aggregate stats for this group (use for upcoming preselect and past stats)
+      let picksStats = { stats: [], mine: {} };
+      try {
+        const rs = await fetch(PICKS_STATS_URL + `?group=${encodeURIComponent(group.name)}`, { credentials: 'include' });
+        if (rs.ok) picksStats = await rs.json();
+      } catch {}
+
+      // Upcoming
+      let upcoming = [];
+      try {
+        const r = await fetch(MATCHES_URL, { cache: 'no-store', credentials: 'include' });
+        if (r.ok) {
+          const json = await r.json();
+          if (json && Array.isArray(json.upcoming)) upcoming = json.upcoming;
+        }
+      } catch (e) {}
+      
+      const picks = loadPicks(group.name);
+      const submissions = loadSubmissions(group.name);
+      const list = document.getElementById('upcomingList');
+      list.innerHTML = '';
+      // need current role to decide admin controls
+      let currentRole = null;
+      try { const meRes = await fetch(ME_URL, { credentials: 'include' }); const me = await meRes.json(); currentRole = me && me.role || null; } catch {}
+
+      upcoming.forEach(m => {
+        const card = document.createElement('div');
+        card.className = 'match-card';
+        const id = matchId(m);
+        const currentPick = (picksStats.mine && picksStats.mine[id]) || picks[id] || null; // 'A' | 'D' | 'B'
+        card.innerHTML = `
+          <div class="match-row">
+            <div>
+              <div class="teams-line">${m.home} vs ${m.away}</div>
+              <div class="muted">Kickoff: ${fmtDateTime(m.kickoff)}</div>
+              <div class="muted">Venue: ${m.venue || 'TBD'}</div>
+            </div>
+            <div class="muted">Prediction by: ${fmtDateTime(m.prediction)}</div>
+          </div>
+          <div class="choices">
+            <div class="btn-row">
+              <button class="btn-choice" data-choice="A" type="button">${m.home} win</button>
+              <button class="btn-choice" data-choice="D" type="button">Draw</button>
+              <button class="btn-choice" data-choice="B" type="button">${m.away} win</button>
+            </div>
+          </div>
+          <div class="prediction-inline" style="display:none; margin-top:6px; color: var(--muted); font-weight:600;"></div>
+          <div class="submit-row">
+            <div class="btn-row">
+              <button class="btn-choice btn-submit" type="button">Submit</button>
+            </div>
+            <div class="prediction-message" style="display:none"></div>
+          </div>
+          ${currentRole === 'admin' ? `
+          <div class=\"submit-row admin-score-row\" style=\"display:none; margin-top:8px;\">
+            <div class=\"btn-row\">
+              <button class=\"btn-choice btn-show-score\" type=\"button\">Add scores</button>
+            </div>
+            <div class=\"score-form\" style=\"display:none; margin-top:8px;\">
+              <div class=\"btn-row\">
+                <input type=\"text\" class=\"scoreA\" value=\"0-00\" placeholder=\"0-00\" pattern=\"\\d+-\\d{2}\" title=\"Format: goals-points (e.g. 1-12, 0-07)\" style=\"border:1px solid var(--border); padding:6px 8px; border-radius:8px;\" />
+                <input type=\"text\" class=\"scoreB\" value=\"0-00\" placeholder=\"0-00\" pattern=\"\\d+-\\d{2}\" title=\"Format: goals-points (e.g. 1-12, 0-07)\" style=\"border:1px solid var(--border); padding:6px 8px; border-radius:8px;\" />
+                <button class=\"btn-choice btn-set-score\" type=\"button\">Save scores</button>
+              </div>
+            </div>
+          </div>` : ''}
+        `;
+
+        // Apply selected state
+        const btns = card.querySelectorAll('.btn-choice');
+        btns.forEach(b => {
+          if (currentPick && b.getAttribute('data-choice') === currentPick) b.classList.add('selected');
+        });
+
+        const inlineMsg = card.querySelector('.prediction-inline');
+        if (currentPick && inlineMsg) {
+          const label = (currentPick === 'A') ? `${m.home} Win` : (currentPick === 'B') ? `${m.away} Win` : 'Draw';
+          inlineMsg.textContent = `Prediction: ${label}`;
+          inlineMsg.style.display = 'block';
+        }
+
+        const submitRow = card.querySelector('.submit-row');
+
+        // If already submitted, lock UI and show message
+        const wasSubmitted = !!submissions[id];
+        if (wasSubmitted) {
+          card.classList.add('submitted');
+          const choicesEl = card.querySelector('.choices');
+          if (choicesEl) choicesEl.style.display = 'none';
+          const submitBtn = card.querySelector('.btn-submit');
+          if (submitBtn) submitBtn.style.display = 'none';
+          const msgEl = card.querySelector('.prediction-message');
+          const label = (currentPick === 'A') ? `${m.home} Win` : (currentPick === 'B') ? `${m.away} Win` : 'Draw';
+          msgEl.textContent = `Prediction: ${label}`;
+          msgEl.style.display = 'block';
+        } else {
+          // Not submitted: only show submit when expanded AND a choice is selected
+          submitRow.style.display = 'none';
+        }
+
+        // Toggle expand on card click (but not when clicking buttons)
+        card.addEventListener('click', (e) => {
+          const target = e.target;
+          if (target && target.classList && target.classList.contains('btn-choice')) return;
+          // ignore clicks inside admin score inputs/area
+          if (target && target.closest && (target.closest('.admin-score-row') || target.closest('.score-form'))) return;
+          card.classList.toggle('expanded');
+          if (!wasSubmitted) {
+            const selected = card.querySelector('.btn-choice.selected');
+            submitRow.style.display = (card.classList.contains('expanded') && selected) ? 'block' : 'none';
+          }
+          const adminRow = card.querySelector('.admin-score-row');
+          if (adminRow) {
+            adminRow.style.display = card.classList.contains('expanded') ? 'block' : 'none';
+            // collapse form when collapsing card
+            if (!card.classList.contains('expanded')) {
+              const form = card.querySelector('.score-form');
+              if (form) form.style.display = 'none';
+            }
+          }
+        });
+
+        // Handle choice clicks
+        btns.forEach(b => {
+          b.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const target = e.currentTarget;
+            const choice = target && target.getAttribute ? target.getAttribute('data-choice') : null;
+            if (!choice) return;
+            // Update selection UI
+            btns.forEach(x => x.classList.remove('selected'));
+            if (target && target.classList) target.classList.add('selected');
+            // Persist pick
+            const latest = loadPicks(group.name);
+            latest[id] = choice;
+            savePicks(group.name, latest);
+            // Show inline prediction statement
+            if (inlineMsg) {
+              const label = (choice === 'A') ? `${m.home} Win` : (choice === 'B') ? `${m.away} Win` : 'Draw';
+              inlineMsg.textContent = `Prediction: ${label}`;
+              inlineMsg.style.display = 'block';
+            }
+              // Reveal submit controls only if expanded and not submitted
+              if (!wasSubmitted && card.classList.contains('expanded')) {
+                submitRow.style.display = 'block';
+              }
+          });
+        });
+
+        // Submit prediction
+        const submitBtn = card.querySelector('.btn-submit');
+        submitBtn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          const selected = card.querySelector('.btn-choice.selected');
+          const choice = selected ? selected.getAttribute('data-choice') : null;
+          if (!choice) return;
+          // Persist to DB
+          try {
+            await fetch(PICKS_URL, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                group: group.name,
+                member: (localStorage.getItem(CURRENT_USER_KEY) || 'Anonymous'),
+                match: { home: m.home, away: m.away, kickoff: m.kickoff },
+                pick: choice
+              })
+            });
+          } catch (err) { console.error(err); }
+          const latestSubs = loadSubmissions(group.name);
+          latestSubs[id] = true;
+          saveSubmissions(group.name, latestSubs);
+          card.classList.add('submitted');
+          const choicesEl = card.querySelector('.choices');
+          if (choicesEl) choicesEl.style.display = 'none';
+          submitBtn.style.display = 'none';
+          const msgEl = card.querySelector('.prediction-message');
+          const label = (choice === 'A') ? `${m.home} Win` : (choice === 'B') ? `${m.away} Win` : 'Draw';
+          msgEl.textContent = `Prediction: ${label}`;
+          msgEl.style.display = 'block';
+        });
+
+        // Admin reveal score inputs
+        const showBtn = card.querySelector('.btn-show-score');
+        if (showBtn) {
+          showBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const form = card.querySelector('.score-form');
+            if (form) form.style.display = 'block';
+          });
+        }
+        // Admin set scores
+        const setBtn = card.querySelector('.btn-set-score');
+        if (setBtn) {
+          setBtn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            const a = card.querySelector('.scoreA').value.trim();
+            const b = card.querySelector('.scoreB').value.trim();
+            if (!a || !b) return;
+            try {
+              const r = await fetch(SET_SCORE_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ home: m.home, away: m.away, kickoff: m.kickoff, home_score: a, away_score: b })
+              });
+              if (!r.ok) throw new Error('Failed');
+              await render();
+            } catch (err) { console.error(err); }
+          });
+        }
+        list.appendChild(card);
+      });
+
+      
+
+      // Past
+      const pastList = document.getElementById('pastList');
+      pastList.innerHTML = '';
+      let pastMatches = [];
+      try {
+        const r = await fetch(MATCHES_URL, { cache: 'no-store' });
+        if (r.ok) {
+          const json = await r.json();
+          if (json && Array.isArray(json.past)) pastMatches = json.past;
+        }
+      } catch (e) {}
+      
+      // Fetch real stats for predictions vs outcomes
+      let apiStats = { stats: [], mine: {} };
+      try {
+        const rs = await fetch(PICKS_STATS_URL + `?group=${encodeURIComponent(group.name)}`, { credentials: 'include' });
+        if (rs.ok) apiStats = await rs.json();
+      } catch {}
+
+      const statsByKey = Object.create(null);
+      (apiStats.stats || []).forEach(s => {
+        const key = `${s.home}|${s.away}|${s.kickoff}`;
+        statsByKey[key] = s;
+      });
+
+      pastMatches.forEach(m => {
+        const id = matchId(m);
+        const totalA = gaelicTotal(m.scoreA);
+        const totalB = gaelicTotal(m.scoreB);
+        const result = (m.result && (m.result === 'A' || m.result === 'B' || m.result === 'D'))
+          ? m.result
+          : (totalA === totalB ? 'D' : (totalA > totalB ? 'A' : 'B'));
+        const userPick = (apiStats.mine && apiStats.mine[id]) || picks[id] || null;
+        const isCorrect = userPick && userPick === result;
+        const stat = statsByKey[id] || { correct: 0, total: 0 };
+        const predictionHuman = userPick ? (userPick === 'A' ? `${m.home} Win` : (userPick === 'B' ? `${m.away} Win` : 'Draw')) : null;
+        const predictionText = userPick ? `${userPick} (${predictionHuman})` : 'No prediction';
+        const card = document.createElement('div');
+        card.className = 'past-card ' + (isCorrect ? 'correct' : 'incorrect');
+        const homeHtml = result === 'A' ? `<span class="winner">${m.home} ${m.scoreA}</span>` : `${m.home} ${m.scoreA}`;
+        const awayHtml = result === 'B' ? `<span class="winner">${m.away} ${m.scoreB}</span>` : `${m.away} ${m.scoreB}`;
+        card.innerHTML = `
+          <div class="past-row">
+            <div>
+              <div class="teams-line">${homeHtml} vs ${awayHtml}</div>
+              <div class="muted">${fmtDateTime(m.kickoff)} • Venue: ${m.venue || 'TBD'}</div>
+              <div class="muted">Your prediction: ${predictionText}</div>
+            </div>
+            <canvas class="pie" width="80" height="80"></canvas>
+          </div>
+        `;
+        pastList.appendChild(card);
+        const canvas = card.querySelector('canvas');
+        drawPie(canvas, Number(stat.correct)||0, Number(stat.total)||0);
+      });
+      // stop seeding to storage; rely on API
+    }
+
+    // removed test button and actions
+
+    // removed test refresh and set deadline buttons
+
+    async function refreshUser() {
+      try {
+        const r = await fetch(ME_URL, { credentials: 'include' });
+        const me = await r.json();
+        const loginLink = document.getElementById('loginLink');
+        const userBox = document.getElementById('userBox');
+        if (me && me.loggedIn) {
+          loginLink.style.display = 'none';
+          userBox.style.display = 'inline';
+          userBox.innerHTML = `${me.name} • <a href="#" id="logoutLink">Logout</a>`;
+          const addBtn = document.getElementById('addMatchBtn');
+          if (me.role === 'admin' && addBtn) addBtn.style.display = 'inline-block';
+          const addTop = document.getElementById('addMatchBtnTop');
+          if (me.role === 'admin' && addTop) addTop.style.display = 'inline-block';
+          const addUpcoming = document.getElementById('addMatchBtnUpcoming');
+          if (me.role === 'admin' && addUpcoming) addUpcoming.style.display = 'inline-block';
+          setTimeout(() => {
+            const out = document.getElementById('logoutLink');
+            if (out) out.addEventListener('click', async (e) => {
+              e.preventDefault();
+              try { await fetch(LOGOUT_URL, { method: 'POST', credentials: 'include' }); } catch {}
+              location.href = '/login.html';
+            });
+          }, 0);
+        } else {
+          loginLink.style.display = 'inline';
+          userBox.style.display = 'none';
+          const addBtn = document.getElementById('addMatchBtn');
+          if (addBtn) addBtn.style.display = 'none';
+          const addTop = document.getElementById('addMatchBtnTop');
+          if (addTop) addTop.style.display = 'none';
+          const addUpcoming = document.getElementById('addMatchBtnUpcoming');
+          if (addUpcoming) addUpcoming.style.display = 'none';
+        }
+      } catch {}
+    }
+
+    refreshUser();
+    render();
+  </script>
+</body>
+</html>
+
+

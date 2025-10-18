@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Create Match</title>
+  <style>
+    :root { --bg:#f5f7fb; --card:#ffffff; --muted:#5b6b86; --text:#0f172a; --border:#e2e8f0; --accent:#2563eb; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family: ui-sans-serif,-apple-system,Segoe UI,Roboto,Helvetica,Arial; background: radial-gradient(1200px 800px at 20% 0%, #ffffff 0%, var(--bg) 60%); color: var(--text); min-height:100vh; }
+    header { padding:24px 20px 8px; display:flex; gap:12px; align-items:baseline; }
+    h1 { margin:0; font-size:22px; }
+    main { width:100%; max-width:720px; margin:12px auto 40px; padding:0 16px; }
+    .card { background: var(--card); border:1px solid var(--border); border-radius:14px; padding:16px; }
+    label { display:block; font-size:13px; color:var(--muted); margin-top:12px; }
+    input, select { width:100%; padding:10px; border:1px solid var(--border); border-radius:10px; margin-top:6px; }
+    .row { display:grid; grid-template-columns: 1fr 1fr; gap:12px; }
+    button { margin-top:16px; padding:10px 14px; border-radius:10px; background:#2563eb; color:white; border:0; cursor:pointer; }
+    .muted { color: var(--muted); font-size: 13px; margin-top: 10px; }
+    .ok { color:#166534; font-weight:600; }
+    .err { color:#991b1b; font-weight:600; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Create a Match</h1>
+    <nav style="margin-left:auto">
+      <a href="/groups.html">Groups</a>
+    </nav>
+  </header>
+  <main>
+    <div class="card">
+      <div class="row">
+        <div>
+          <label for="homeSel">Home team</label>
+          <select id="homeSel"></select>
+        </div>
+        <div>
+          <label for="awaySel">Away team</label>
+          <select id="awaySel"></select>
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label for="competition">Competition</label>
+          <input id="competition" placeholder="e.g. Derry SFC" />
+        </div>
+        <div>
+          <label for="county">County</label>
+          <select id="county">
+            <option value="">Select county…</option>
+            <option>Antrim</option>
+            <option>Armagh</option>
+            <option>Carlow</option>
+            <option>Cavan</option>
+            <option>Clare</option>
+            <option>Cork</option>
+            <option>Derry</option>
+            <option>Donegal</option>
+            <option>Down</option>
+            <option>Dublin</option>
+            <option>Fermanagh</option>
+            <option>Galway</option>
+            <option>Kerry</option>
+            <option>Kildare</option>
+            <option>Kilkenny</option>
+            <option>Laois</option>
+            <option>Leitrim</option>
+            <option>Limerick</option>
+            <option>Longford</option>
+            <option>Louth</option>
+            <option>Mayo</option>
+            <option>Meath</option>
+            <option>Monaghan</option>
+            <option>Offaly</option>
+            <option>Roscommon</option>
+            <option>Sligo</option>
+            <option>Tipperary</option>
+            <option>Tyrone</option>
+            <option>Waterford</option>
+            <option>Westmeath</option>
+            <option>Wexford</option>
+            <option>Wicklow</option>
+          </select>
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label for="venue">Venue</label>
+          <input id="venue" placeholder="e.g. Celtic Park" />
+        </div>
+        <div>
+          <label>Kickoff</label>
+          <div class="row" style="grid-template-columns: 1fr 1fr; gap:8px;">
+            <input id="kickoffDate" type="date" />
+            <input id="kickoffTime" type="time" step="60" />
+          </div>
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label for="finished">Finished?</label>
+          <select id="finished">
+            <option value="0" selected>No</option>
+            <option value="1">Yes</option>
+          </select>
+        </div>
+      </div>
+      <div class="row" id="scoreRow" style="display:none">
+        <div>
+          <label for="homeScore">Home score (e.g. 1-12)</label>
+          <input id="homeScore" />
+        </div>
+        <div>
+          <label for="awayScore">Away score (e.g. 0-10)</label>
+          <input id="awayScore" />
+        </div>
+      </div>
+      <button id="submitBtn" type="button">Add match</button>
+      <div id="msg" class="muted"></div>
+    </div>
+  </main>
+  <script>
+    const CREATE_URL = 'http://127.0.0.1:5001/api/matches';
+    const TEAMS = ['Lavey', 'Bellaghy', 'Glen', 'Swatragh'];
+
+    const homeSel = document.getElementById('homeSel');
+    const awaySel = document.getElementById('awaySel');
+
+    function setOptions(selectEl, excludeValue) {
+      const prev = selectEl.value;
+      selectEl.innerHTML = '';
+      const ph = document.createElement('option');
+      ph.value = '';
+      ph.textContent = 'Select team…';
+      selectEl.appendChild(ph);
+      TEAMS.forEach(t => {
+        if (t === excludeValue) return;
+        const opt = document.createElement('option');
+        opt.value = t; opt.textContent = t;
+        selectEl.appendChild(opt);
+      });
+      // Try restore previous value if still valid
+      if (prev && prev !== excludeValue) selectEl.value = prev;
+    }
+
+    setOptions(homeSel, null);
+    setOptions(awaySel, null);
+
+    homeSel.addEventListener('change', () => {
+      setOptions(awaySel, homeSel.value || null);
+    });
+    awaySel.addEventListener('change', () => {
+      setOptions(homeSel, awaySel.value || null);
+    });
+    const finishedEl = document.getElementById('finished');
+    finishedEl.addEventListener('change', () => {
+      document.getElementById('scoreRow').style.display = finishedEl.value === '1' ? 'grid' : 'none';
+    });
+    document.getElementById('submitBtn').addEventListener('click', async () => {
+      const msg = document.getElementById('msg');
+      msg.textContent = '';
+      if (!homeSel.value || !awaySel.value) {
+        msg.className = 'muted err';
+        msg.textContent = 'Please select both teams.';
+        return;
+      }
+      function combineLocalToISO(dateValue, timeValue) {
+        if (!dateValue) return null;
+        const t = timeValue && timeValue.length ? timeValue : '00:00';
+        // Compose as local time string "YYYY-MM-DDTHH:mm"
+        const combined = `${dateValue}T${t}`;
+        const d = new Date(combined);
+        if (isNaN(d.getTime())) return null;
+        return d.toISOString();
+      }
+
+      const payload = {
+        home_team: homeSel.value,
+        away_team: awaySel.value,
+        competition: document.getElementById('competition').value.trim() || null,
+        county: document.getElementById('county').value.trim() || null,
+        venue: document.getElementById('venue').value.trim() || null,
+        kickoff_at: combineLocalToISO(
+          document.getElementById('kickoffDate').value,
+          document.getElementById('kickoffTime').value
+        )
+      };
+      if (finishedEl.value === '1') {
+        payload.home_score = document.getElementById('homeScore').value.trim() || null;
+        payload.away_score = document.getElementById('awayScore').value.trim() || null;
+      }
+      try {
+        const r = await fetch(CREATE_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify(payload)
+        });
+        if (!r.ok) {
+          const j = await r.json().catch(() => ({}));
+          throw new Error(j.error || 'Failed to create match');
+        }
+        msg.className = 'muted ok';
+        msg.textContent = 'Match added successfully';
+      } catch (e) {
+        msg.className = 'muted err';
+        msg.textContent = e.message || 'Failed to create match';
+      }
+    });
+  </script>
+</body>
+</html>
+
