@@ -41,6 +41,9 @@
     .hdr-crests span { text-align: center; }
     .cell-correct { background: rgba(93,212,162,0.18); color:#14532d; font-weight:600; }
     .cell-wrong { background: rgba(255,107,107,0.16); color:#7a1f1f; font-weight:600; }
+    /* Fixed width for each match column */
+    .match-col { width: 240px; min-width: 240px; max-width: 240px; }
+    .no-pred { color: var(--muted); font-style: italic; }
   </style>
 </head>
 <body>
@@ -62,7 +65,6 @@
           <tbody id="matrixBody"></tbody>
         </table>
       </div>
-      <div class="muted" id="help">Columns are matches; header shows result if finished. Cells show each user's pick.</div>
     </div>
   </main>
 
@@ -125,7 +127,7 @@
       thScore.addEventListener('click', () => { sortBy === 'score' ? (sortDir = sortDir === 'desc' ? 'asc' : 'desc') : (sortBy = 'score', sortDir = 'desc'); render(); });
       trh.appendChild(thScore);
       data.matches.forEach((m, idx) => {
-        const th = document.createElement('th');
+        const th = document.createElement('th'); th.className = 'match-col';
         const labelTop = `${m.home} vs ${m.away}`;
         const res = resultLabel(m.result);
         // Determine display score and winner style
@@ -157,14 +159,19 @@
         const tdName = document.createElement('td'); tdName.textContent = name; tr.appendChild(tdName);
         const tdScore = document.createElement('td'); tdScore.textContent = String(score); tr.appendChild(tdScore);
         data.matches.forEach((m) => {
-          const td = document.createElement('td');
+          const td = document.createElement('td'); td.className = 'match-col';
           const key = `${name}|${matchKey(m)}`;
           const pick = data.picks[key] || '';
           let text = '';
           if (pick === 'A') text = m.home;
           else if (pick === 'B') text = m.away;
           else if (pick === 'D') text = 'Draw';
-          td.textContent = text;
+          if (text) {
+            td.textContent = text;
+          } else {
+            td.textContent = '(no prediction)';
+            td.classList.add('no-pred');
+          }
           if (pick) td.classList.add(`pick-${pick}`);
           // Correctness coloring using result letter
           if (m.result === 'A' || m.result === 'B' || m.result === 'D') {

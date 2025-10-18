@@ -167,22 +167,47 @@ def api_scores():
     group = request.args.get("group")
     with get_conn() as conn:
         cur = conn.cursor()
-        sql = (
-            """
-            SELECT g.name AS group_name, m.name AS member_name, ms.score AS score
-            FROM member_scores ms
-            JOIN groups g ON g.id = ms.group_id
-            JOIN members m ON m.id = ms.member_id
-            """
-        )
-        params = []
         if group:
-            sql += " WHERE g.name = ?"
-            params.append(group)
-        sql += " ORDER BY g.name COLLATE NOCASE, ms.score DESC, m.name COLLATE NOCASE"
-        cur.execute(sql, params)
-        rows = [dict(r) for r in cur.fetchall()]
-    return jsonify(rows)
+            # Compute scores dynamically from picks vs finished matches (like matrix)
+            cur.execute("SELECT id FROM groups WHERE name=?", (group,))
+            g = cur.fetchone()
+            if not g:
+                return jsonify([])
+            gid = g[0]
+            res_expr = _result_letter_sql_expr("m")
+            cur.execute(
+                f"""
+                SELECT mbr.name AS member_name,
+                       COALESCE(SUM(CASE WHEN (m.id IS NOT NULL AND (
+                         {res_expr}
+                       ) = p.pick) THEN 1 ELSE 0 END), 0) AS score
+                FROM members mbr
+                LEFT JOIN picks p ON p.member_id = mbr.id AND p.group_id = ?
+                LEFT JOIN matches m ON m.id = p.match_id
+                                     AND (m.match_over IS NOT NULL AND m.match_over <> '0')
+                WHERE mbr.group_id = ?
+                GROUP BY mbr.id, mbr.name
+                ORDER BY score DESC, mbr.name COLLATE NOCASE
+                """,
+                (gid, gid),
+            )
+            out = []
+            for r in cur.fetchall():
+                out.append({"group_name": group, "member_name": r[0], "score": r[1]})
+            return jsonify(out)
+        else:
+            # Fallback to cached table across all groups
+            cur.execute(
+                """
+                SELECT g.name AS group_name, m.name AS member_name, ms.score AS score
+                FROM member_scores ms
+                JOIN groups g ON g.id = ms.group_id
+                JOIN members m ON m.id = ms.member_id
+                ORDER BY g.name COLLATE NOCASE, ms.score DESC, m.name COLLATE NOCASE
+                """
+            )
+            rows = [dict(r) for r in cur.fetchall()]
+            return jsonify(rows)
 
 
 @app.get("/api/matches")
